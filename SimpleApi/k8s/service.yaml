@@ -1,0 +1,17 @@
+# Service framför SimpleApi-poddarna. ClusterIP räcker eftersom trafik ska
+# in via Ingress (nedan) – ingen anledning att exponera Service:n direkt.
+apiVersion: v1
+kind: Service
+metadata:
+  name: simpleapi
+  namespace: simpleapi
+  labels:
+    app: simpleapi
+spec:
+  type: ClusterIP
+  selector:
+    app: simpleapi
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

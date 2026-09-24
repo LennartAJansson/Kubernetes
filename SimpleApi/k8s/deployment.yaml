@@ -1,0 +1,73 @@
+# Deployment för SimpleApi.
+#
+# En fristående "Pod"-resurs skapas inte separat – i praktiken hanteras poddar
+# alltid via en Deployment (som via en ReplicaSet skapar och övervakar poddarna
+# enligt malen under spec.template nedan). Det är detta som ger dig
+# självläkning, rullande uppdateringar och skalning "gratis". En egen Pod-
+# resurs hade varit engångsbruk utan någon av dessa fördelar.
+#
+# __VERSION__ ersätts av build.ps1 med den version som precis byggdes och
+# pushades, så att en `kubectl apply` alltid rullar ut exakt den image som
+# senast byggdes – inte en gammal hårdkodad tagg.
+#
+# __REGISTRY_HOST__ ersätts av build.ps1 med den registry-adress som
+# klustrets NODER kan slå upp och nå (default "registry:5000"). Det är INTE
+# samma adress som build.ps1 pushar till från din dator ("registry.ubk3s:5000",
+# som bara finns i din egen hosts-fil) – ".ubk3s" är ett domännamn som bara
+# din Windows-maskin känner till, inte klustrets noder. Om deployment.yaml
+# hårdkodar "registry.ubk3s:5000" här får noderna ImagePullBackOff eftersom
+# de inte kan slå upp adressen (se README för detaljer).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simpleapi
+  namespace: simpleapi
+  labels:
+    app: simpleapi
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: simpleapi
+  template:
+    metadata:
+      labels:
+        app: simpleapi
+    spec:
+      containers:
+        - name: simpleapi
+          image: __REGISTRY_HOST__/simpleapi:__VERSION__
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8081
+          env:
+            # aspnet:10.0-basavbildens default är ASPNETCORE_HTTP_PORTS=8080.
+            # Projektets ContainerPort är satt till 8081, så vi tvingar Kestrel
+            # att faktiskt lyssna på 8081 här – annars matchar inget
+            # (containerPort/targetPort/probes) det porten appen lyssnar på.
+            - name: ASPNETCORE_HTTP_PORTS
+              value: "8081"
+          readinessProbe:
+            httpGet:
+              path: /weatherforecast
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /weatherforecast
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "250m"
+              memory: "128Mi"

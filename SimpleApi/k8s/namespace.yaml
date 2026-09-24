@@ -1,0 +1,5 @@
+# Egen namespace för SimpleApi, samma namn som applikationen/repot.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: simpleapi

@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/K8s/">
+    <File Path="build.ps1" />
+    <File Path="k8s/deployment.yaml" />
+    <File Path="k8s/ingress.yaml" />
+    <File Path="k8s/namespace.yaml" />
+    <File Path="k8s/service.yaml" />
+  </Folder>
+  <Project Path="SimpleApi/SimpleApi.csproj" />
+</Solution>

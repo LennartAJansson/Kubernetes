@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<EnableSdkContainerDebugging>True</EnableSdkContainerDebugging>
+		<ContainerBaseImage>mcr.microsoft.com/dotnet/aspnet:10.0</ContainerBaseImage>
+		<UserSecretsId>a46405a2-86dd-474f-9f5d-bd0774a11719</UserSecretsId>
+		<ContainerRegistry>192.168.50.254:5000</ContainerRegistry>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
+		<PackageReference Include="Scalar.AspNetCore.Microsoft" Version="2.17.7" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ContainerPort Include="8081" />
+	</ItemGroup>
+
+</Project>
+

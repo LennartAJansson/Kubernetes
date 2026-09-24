@@ -1,0 +1,22 @@
+# Ingress som routar simpleapi.ubk3s till Service:n ovan.
+#
+# ubk3s-home kör Traefik (k3d:s inbyggda default ingress-controller,
+# `kubectl get ingressclass` -> "traefik (default)"), inte ingress-nginx.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: simpleapi
+  namespace: simpleapi
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: simpleapi.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: simpleapi
+                port:
+                  number: 80
