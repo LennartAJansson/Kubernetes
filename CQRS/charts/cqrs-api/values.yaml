@@ -1,0 +1,76 @@
+# =============================================================================
+# Values för CQRSApi. Allt kan överstyras med --set eller -f egna-values.yaml.
+# =============================================================================
+
+replicaCount: 2
+
+image:
+  # Adressen som klustrets NODER använder för att hämta imagen (inte push-adressen).
+  repository: registry:5000/cqrsapi
+  # Tom = Chart.appVersion. build.ps1 sätter den till versionen som just byggdes.
+  tag: ""
+  pullPolicy: Always
+
+# Porten Kestrel lyssnar på i containern (ASPNETCORE_HTTP_PORTS).
+containerPort: 8081
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: traefik
+  host: cqrsapi.local
+  path: /
+  annotations: {}
+  # tls:
+  #   - secretName: cqrsapi-tls
+  #     hosts: [cqrsapi.local]
+  tls: []
+
+# --- Läs-sidan: Dapper mot workerns databas -----------------------------------
+database:
+  # Använd gärna en användare som BARA har SELECT - API:t ska aldrig skriva.
+  connectionString: "Server=mysql.mysql.svc.cluster.local;Port=3306;Database=cqrs;User ID=cqrs_reader;Password=reader-pwd;AllowPublicKeyRetrieval=True"
+  # Peka på en befintlig Secret istället för att lägga strängen i values.
+  existingSecret: ""
+  existingSecretKey: connectionString
+
+# --- Skriv-sidan: kommandon på NATS JetStream ---------------------------------
+nats:
+  url: nats://nats.nats.svc.cluster.local:4222
+  stream: PERSONS          # måste vara samma som i cqrs-worker
+
+# --- CORS -----------------------------------------------------------------------
+cors:
+  # AllowAll     - alla origins (bra i utveckling)
+  # AllowOrigins - bara origins i listan nedan
+  # Disabled     - ingen CORS
+  mode: AllowAll
+  origins: []
+  #  - http://angular.local
+  #  - http://localhost:4200
+
+# Visa OpenAPI-dokumentet och Scalar-UI:t (/scalar) även utanför Development.
+openApi:
+  enabled: true
+
+# Extra miljövariabler, t.ex. { Logging__LogLevel__Default: Debug }
+extraEnv: {}
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 96Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+probes:
+  path: /healthz
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

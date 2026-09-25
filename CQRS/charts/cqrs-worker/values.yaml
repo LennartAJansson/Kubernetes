@@ -1,0 +1,41 @@
+# =============================================================================
+# Values för CQRSWorker. Allt kan överstyras med --set eller -f egna-values.yaml.
+# =============================================================================
+
+# Håll 1 replika i demon: då utförs kommandona garanterat i den ordning de
+# publicerades. Fler replikor delar på kön (samma durable consumer), men då
+# kan t.ex. en Update hinna före sin Create.
+replicaCount: 1
+
+image:
+  repository: registry:5000/cqrsworker
+  tag: ""            # tom = Chart.appVersion, build.ps1 sätter versionen
+  pullPolicy: Always
+
+# --- Databasen som workern ÄGER (EF Core) -------------------------------------
+database:
+  # Användaren behöver kunna skapa tabeller (EnsureCreated) och skriva.
+  connectionString: "Server=mysql.mysql.svc.cluster.local;Port=3306;Database=cqrs;User ID=cqrs_writer;Password=writer-pwd;AllowPublicKeyRetrieval=True"
+  existingSecret: ""
+  existingSecretKey: connectionString
+
+# --- NATS JetStream -----------------------------------------------------------
+nats:
+  url: nats://nats.nats.svc.cluster.local:4222
+  stream: PERSONS        # måste vara samma som i cqrs-api
+  consumer: cqrs-worker  # namnet på den varaktiga (durable) konsumenten
+
+extraEnv: {}
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 96Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

@@ -1,0 +1,7 @@
+CQRSWorker är installerad i namespace {{ .Release.Namespace }}.
+
+Den har ingen Service eller Ingress - den nås bara via kommandon på NATS:
+  {{ .Values.nats.url }}  ström {{ .Values.nats.stream }}, konsument {{ .Values.nats.consumer }}
+
+Följ vad den gör:
+  kubectl logs -f deploy/{{ include "cqrs-worker.fullname" . }} -n {{ .Release.Namespace }}

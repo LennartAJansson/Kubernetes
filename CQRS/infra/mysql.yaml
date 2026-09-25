@@ -1,0 +1,126 @@
+# =============================================================================
+# En enkel MySQL för CQRS-demon (en pod, lagring via k3s local-path).
+#
+#   kubectl apply -f infra/mysql.yaml
+#
+# Två databasanvändare visar CQRS-uppdelningen även i rättigheterna:
+#   cqrs_writer - ALLA rättigheter på databasen cqrs  -> CQRSWorker (EF Core)
+#   cqrs_reader - bara SELECT                          -> CQRSApi   (Dapper)
+#
+# I klustret:   mysql.mysql.svc.cluster.local:3306
+# Från Windows: localhost:3306 (k3d forwardar 3306, Service:n är LoadBalancer)
+#
+# OBS: lösenorden är demo-lösenord i klartext. Init-skriptet körs bara första
+# gången (när datakatalogen är tom) - radera PVC:n för att köra om det.
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mysql
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql-root
+  namespace: mysql
+type: Opaque
+stringData:
+  password: root-pwd
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-init
+  namespace: mysql
+data:
+  01-users.sql: |
+    CREATE DATABASE IF NOT EXISTS cqrs;
+
+    CREATE USER IF NOT EXISTS 'cqrs_writer'@'%' IDENTIFIED BY 'writer-pwd';
+    GRANT ALL PRIVILEGES ON cqrs.* TO 'cqrs_writer'@'%';
+
+    CREATE USER IF NOT EXISTS 'cqrs_reader'@'%' IDENTIFIED BY 'reader-pwd';
+    GRANT SELECT ON cqrs.* TO 'cqrs_reader'@'%';
+
+    FLUSH PRIVILEGES;
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-data
+  namespace: mysql
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: mysql
+  labels:
+    app: mysql
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate        # två MySQL-poddar får aldrig dela samma datakatalog
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.4
+          ports:
+            - name: mysql
+              containerPort: 3306
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-root
+                  key: password
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$MYSQL_ROOT_PASSWORD\""]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 384Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mysql-data
+        - name: init
+          configMap:
+            name: mysql-init
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: mysql
+spec:
+  type: LoadBalancer
+  selector:
+    app: mysql
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: mysql

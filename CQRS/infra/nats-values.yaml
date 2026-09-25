@@ -1,0 +1,23 @@
+# Values till NATS officiella Helm-chart (nats-io/k8s) med JetStream påslaget.
+#
+#   helm repo add nats https://nats-io.github.io/k8s/helm/charts/
+#   helm upgrade --install nats nats/nats -n nats --create-namespace -f infra/nats-values.yaml
+#
+# I klustret:   nats://nats.nats.svc.cluster.local:4222
+# Från Windows: nats://localhost:4222 och http://localhost:8222 (monitor)
+#               - k3d-install.yaml forwardar 4222/8222 till server-noden och
+#               ServiceLB binder dem eftersom Service:n är LoadBalancer.
+config:
+  jetstream:
+    enabled: true
+    fileStore:
+      pvc:
+        size: 1Gi          # räcker gott för en demo (default är 10Gi)
+
+service:
+  ports:
+    monitor:
+      enabled: true
+  merge:
+    spec:
+      type: LoadBalancer

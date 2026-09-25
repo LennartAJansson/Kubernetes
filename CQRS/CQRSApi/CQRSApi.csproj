@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableSdkContainerDebugging>True</EnableSdkContainerDebugging>
+    <ContainerBaseImage>mcr.microsoft.com/dotnet/aspnet:10.0</ContainerBaseImage>
+    <ContainerRepository>cqrsapi</ContainerRepository>
+    <UserSecretsId>353da3c9-5e7f-4964-bd9a-becd4511506d</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Läs-sidan: Dapper + MySqlConnector (lätt, snabbt, ren SQL) -->
+    <PackageReference Include="Dapper" Version="2.1.89" />
+    <PackageReference Include="MySqlConnector" Version="2.6.2" />
+    <!-- Skriv-sidan: kommandon publiceras på NATS JetStream -->
+    <PackageReference Include="NATS.Net" Version="3.2.0" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
+    <PackageReference Include="Scalar.AspNetCore.Microsoft" Version="2.17.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ContainerPort Include="8081" />
+  </ItemGroup>
+
+</Project>

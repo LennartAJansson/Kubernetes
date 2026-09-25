@@ -1,0 +1,11 @@
+CQRSApi är installerat i namespace {{ .Release.Namespace }}.
+{{- if .Values.ingress.enabled }}
+
+  http://{{ .Values.ingress.host }}/persons
+  http://{{ .Values.ingress.host }}/scalar   (om openApi.enabled)
+
+Kom ihåg raden i hosts-filen:  127.0.0.1  {{ .Values.ingress.host }}
+{{- end }}
+
+CORS-läge: {{ .Values.cors.mode }}{{ if .Values.cors.origins }} ({{ join ", " .Values.cors.origins }}){{ end }}
+NATS:      {{ .Values.nats.url }} (ström {{ .Values.nats.stream }})

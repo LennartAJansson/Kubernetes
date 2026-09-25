@@ -1,0 +1,6 @@
+apiVersion: v2
+name: cqrs-api
+description: CQRSApi - utåtriktat API (Query via Dapper, Command via NATS JetStream)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

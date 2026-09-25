@@ -1,0 +1,38 @@
+# Lokalt (dotnet run):           http://localhost:5285
+# I klustret via Traefik-ingress: http://cqrsapi.local  (kräver rad i hosts-filen)
+@host = http://cqrsapi.local
+
+### Lista alla personer (Query -> Dapper)
+GET {{host}}/persons
+Accept: application/json
+
+### Skapa en person (Command -> JetStream -> Worker). Svarar 202 + Location.
+# @name create
+POST {{host}}/persons
+Content-Type: application/json
+
+{
+  "firstName": "Ada",
+  "lastName": "Lovelace",
+  "email": "ada@example.com"
+}
+
+### Hämta personen som just skapades (kan ge 404 någon millisekund innan workern hunnit)
+GET {{host}}/persons/{{create.response.body.$.personId}}
+Accept: application/json
+
+### Uppdatera
+PUT {{host}}/persons/{{create.response.body.$.personId}}
+Content-Type: application/json
+
+{
+  "firstName": "Ada",
+  "lastName": "King",
+  "email": "ada.king@example.com"
+}
+
+### Ta bort
+DELETE {{host}}/persons/{{create.response.body.$.personId}}
+
+### Hälsokoll (används av Kubernetes probes)
+GET {{host}}/healthz
