@@ -1,0 +1,136 @@
+# =============================================================================
+# k3d-klusterkonfiguration för lokal devmiljö (Docker Desktop, Windows)
+# =============================================================================
+# Motsvarigheten till k3s\createubk3s-home.ps1 STEG 2 (k3s-installationen),
+# fast för k3d. Används med: k3d cluster create --config k3d-install.yaml
+#
+# Baserad på Lennarts eget tidigare utkast (D:\Cluster\New\Installation\
+# k3d-install.yaml), med följande ändringar/tillägg (se claude/k3d-migrering.md
+# i Claude-projektet för fullständig motivering):
+#   - Pinnad k3s-version (image:) - håller synk med k3s-mappens v1.36.3+k3s1.
+#   - --default-local-storage-path tillagt (motsvarande bugg M:s fix på
+#     ubk3s-home) - annars hamnar "local-shared-path"-data på fel plats här
+#     också, med exakt samma root cause som i k3s-mappen.
+#   - Volymmålet ändrat från /tmp/shared till /data/shared/k8s - matchar
+#     StorageClass-lagringen på riktigt och namnet på motsvarande k3s-mapp.
+#   - registries.mirrors-blocket omskrivet - se kommentar vid registries: nedan.
+#   - metadata.name ändrat till "home" (från "local-hp") - ger k3d:s
+#     automatiska kubeconfig-namngivning "k3d-home" för cluster/context/user,
+#     konsekvent med ubk3s-home och krockfritt vid multikluster-merge (k3d
+#     prefixar redan med "k3d-", så samma "default"-krock som bugg O i
+#     k3s-mappen uppstår aldrig här).
+#
+# OBS: INTE live-testat än (2026-09-23) - körningsklart men obekräftat,
+# till skillnad från k3s-mappens filer som är fullt validerade.
+# =============================================================================
+
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+
+metadata:
+  name: home
+
+# Pinnad k3s-version, synkad med k3s\createubk3s-home.ps1 ($K3sVersion).
+# OBS: k3d/Docker-imagetaggar använder bindestreck mellan versionen och
+# k3s-byggnumret (v1.36.3-k3s1), INTE plustecken som k3s:s egna
+# versionssträngar (v1.36.3+k3s1) - uppdatera BÅDA filerna vid en medveten
+# versionsuppgradering, annars tappar de synk igen.
+image: rancher/k3s:v1.36.3-k3s1
+
+servers: 1
+
+kubeAPI:
+  hostIP: "127.0.0.1"
+  hostPort: "6443"
+
+# Explicit subnet för att undvika krockar med andra Docker-nätverk på samma
+# maskin (t.ex. WSL2:s egna interna nät).
+subnet: "172.29.0.0/16"
+
+volumes:
+  # RÄTTAD 2026-09-23: målet var tidigare /tmp/shared, som inte hänger ihop
+  # med varken StorageClass-lagringen (se options.k3s.extraArgs nedan) eller
+  # namnet på motsvarande katalog i k3s-mappen. /data/shared/k8s matchar båda.
+  - volume: C:\data\shared\k8s:/data/shared/k8s
+    nodeFilters:
+      - server:0
+      - agent:*
+
+ports:
+  # Traefik-ingress (samma som k3s:s ServiceLB-bindning av portar 80/443 på
+  # Ubuntu-servern, fast här via k3d:s egen loadbalancer-container).
+  - port: 80:80
+    nodeFilters:
+      - loadbalancer
+  - port: 443:443
+    nodeFilters:
+      - loadbalancer
+  # MySQL, NATS (client + monitoring), Redis - direkt mot server-noden,
+  # samma modell som Lennarts ursprungliga utkast. ServiceLB (klipper-lb)
+  # kör fortfarande inuti k3s-noden precis som på bar metall, så en
+  # LoadBalancer-tjänst där binder mot dessa portar i nodens egen
+  # nätverksnamnrymd - k3d-porten forwardar sedan bara Windows-värdens port
+  # in i Docker-containern.
+  - port: 3306:3306
+    nodeFilters:
+      - server:0
+  - port: 4222:4222
+    nodeFilters:
+      - server:0
+  - port: 8222:8222
+    nodeFilters:
+      - server:0
+  - port: 6379:6379
+    nodeFilters:
+      - server:0
+
+registries:
+  # k3d:s inbyggda registry-stöd (Lennarts val, se claude/k3d-migrering.md) -
+  # en egen Docker-container bredvid klustret, inte en in-cluster Deployment
+  # som k3s-mappens registry.yaml.
+  create:
+    name: registry
+    host: "0.0.0.0"
+    hostPort: "5000"
+    volumes:
+      - C:\data\shared\registry:/var/lib/registry
+  # RÄTTELSE 2026-09-23: jag antog tidigare (fel!) att k3d prefixar
+  # registret ovan med "k3d-" i klustrets interna DNS, baserat på
+  # dokumentationen för den FRISTÅENDE "k3d registry create"-kommandot.
+  # Lennart har verifierat mot en tidigare, riktig körning av den här configen
+  # att den prefixeringen INTE gäller här - "registries.create" (inuti en
+  # Simple config, som ovan) skapar registret under namnet exakt som angivet
+  # ("registry"), inte "k3d-registry". Återställt till Lennarts ursprungliga
+  # utkast nedan.
+  #
+  # ÖPPEN FRÅGA (inte löst än): oklart om det här mirrors-blocket ens behövs -
+  # om "registry:5000" redan löser nativt inifrån klustret (Docker DNS inom
+  # k3d:s nätverk) kan det vara ett no-op. Det andra syftet - att "registry.
+  # local:5000" ALLTID ska peka på samma backend som "registry:5000" - är
+  # dock troligen fortfarande relevant. Kontrollera vid första körningen,
+  # t.ex. med en enkel `docker push localhost:5000/test:1` från
+  # Windows-värden, följt av att en testpod i klustret drar `registry:5000/
+  # test:1` respektive `registry.local:5000/test:1`.
+  config: |
+    mirrors:
+      "registry":
+        endpoint:
+          - "http://registry:5000"
+          - "http://registry.local:5000"
+
+options:
+  k3d:
+    wait: true
+    timeout: "60s"
+  k3s:
+    # Motsvarigheten till bugg M:s fix i k3s\createubk3s-home.ps1 - utan
+    # denna hamnar "local-shared-path"-PVC:er på provisionerns inbyggda
+    # default-plats inuti containern istället för på den volymmonterade
+    # /data/shared/k8s (och därmed ingenstans du kan se dem från Windows).
+    extraArgs:
+      - arg: "--default-local-storage-path=/data/shared/k8s"
+        nodeFilters:
+          - server:*
+  kubeconfig:
+    updateDefaultKubeconfig: true
+    switchCurrentContext: true
