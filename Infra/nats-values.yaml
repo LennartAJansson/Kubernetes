@@ -1,0 +1,37 @@
+# Values till NATS officiella chart (nats-io/k8s, 1.x).
+# OBS: charten har INGA toppnivånycklar "persistence" eller "service.type"
+# (det är Bitnami-konventioner) - okända nycklar ignoreras tyst av Helm.
+
+config:
+  jetstream:
+    enabled: true
+    fileStore:
+      pvc:
+        size: 10Gi
+        # k3d-klustrets inbyggda local-path -> C:\data\shared\k8s
+        storageClassName: local-path
+
+# Tjänstens typ sätts via merge. ServiceLB i k3d-noden binder då 4222 (och
+# 8222 för monitor), som k3d-install.yaml forwardar till Windows.
+service:
+  ports:
+    monitor:
+      enabled: true
+  merge:
+    spec:
+      type: LoadBalancer
+
+# Prometheus-exportör (prometheus-nats-exporter som sidecar, exponerar
+# JetStream-metrics också eftersom config.jetstream.enabled=true ovan).
+promExporter:
+  enabled: true
+  port: 7777
+
+# Den officiella charten sätter inte prometheus.io/scrape-annoteringar
+# automatiskt - måste sättas manuellt via podTemplate.merge.
+podTemplate:
+  merge:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "7777"

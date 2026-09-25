@@ -1,0 +1,34 @@
+auth:
+  rootUserNewConnectionOptions: "--host='%'"
+
+primary:
+  service:
+    type: LoadBalancer
+  persistence:
+    # k3d-klustrets inbyggda local-path. Tack vare --default-local-storage-path
+    # i k3d-install.yaml hamnar datat ändå i C:\data\shared\k8s.
+    storageClass: "local-path"
+    size: "10Gi"
+
+volumePermissions:
+  enabled: true
+  image:
+    repository: "bitnamilegacy/os-shell"
+
+image:
+  repository: "bitnamilegacy/mysql"
+
+global:
+  security:
+    allowInsecureImages: true
+
+# Prometheus-exportör (mysqld-exporter som sidecar). Oförändrad mot
+# k3s-mappen - se den filens kommentar för bakgrund.
+metrics:
+  enabled: true
+  image:
+    repository: "bitnamilegacy/mysqld-exporter"
+  service:
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "9104"

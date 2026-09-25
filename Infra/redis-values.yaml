@@ -1,0 +1,37 @@
+architecture: standalone
+
+master:
+  service:
+    type: LoadBalancer
+  persistence:
+    # Se kommentaren i mysql-values.yaml.
+    storageClass: "local-path"
+    size: "8Gi"
+
+# Taggarna är låsta: Bitnamis nya charts pekar på ":latest", men
+# bitnamilegacy fick sin sista "latest" i juli 2025 (Redis 8.0) medan
+# charten är byggd för en nyare Redis. Låsta taggar = förutsägbart.
+volumePermissions:
+  enabled: true
+  image:
+    repository: "bitnamilegacy/os-shell"
+    tag: "12-debian-12-r51"
+
+image:
+  repository: "bitnamilegacy/redis"
+  tag: "8.2.1-debian-12-r0"
+
+global:
+  security:
+    allowInsecureImages: true
+
+# Prometheus-exportör (redis_exporter som sidecar). Oförändrad mot
+# k3s-mappen - se den filens kommentar för bakgrund.
+metrics:
+  enabled: true
+  image:
+    repository: "bitnamilegacy/redis-exporter"
+    tag: "1.76.0-debian-12-r0"
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9121"
