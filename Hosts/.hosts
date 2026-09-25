@@ -1,0 +1,8 @@
+# Hostsfilen är ett hjälpmedel där man lokalt i sin egen dator kan skapa egna dns-upplösningar
+# Man skriver helt enkelt en ip-address för ett hostname och kan på så vis fejka en namnuppslagning
+# Filen kan innehålla ett flertal såna rader och det spelar ingen roll med antalet mellanslag mm på raderna
+# Ordningen på raderna spelar heller ingen roll, en rad som börjar med # betraktas som kommentar
+# Filen finns på C:\Windows\System32\drivers\etc\hosts
+# Tänk på att man måste öppna den med notepad som körs med admin-rättigheter för att få lov att spara den
+# Exempel:
+  127.0.0.1     registry
