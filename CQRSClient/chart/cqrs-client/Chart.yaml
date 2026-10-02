@@ -1,0 +1,6 @@
+apiVersion: v2
+name: cqrs-client
+description: CQRSClient - Angular-frontend för CQRS-exemplet, serverad av nginx
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

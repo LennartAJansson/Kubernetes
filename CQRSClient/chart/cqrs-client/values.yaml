@@ -1,0 +1,55 @@
+# =============================================================================
+# Values för CQRSClient (Angular + nginx). Överstyr med --set eller -f.
+# =============================================================================
+
+# Statiska filer utan tillstånd - kan skalas fritt.
+replicaCount: 2
+
+image:
+  # Adressen klustrets NODER hämtar imagen från (inte push-adressen).
+  repository: registry:5000/cqrsclient
+  tag: ""            # tom = Chart.appVersion, build.ps1 sätter versionen
+  pullPolicy: Always
+
+containerPort: 80
+
+# --- Proxy mot CQRSApi -----------------------------------------------------------
+# Webbläsaren anropar /api/... på cqrsclient.local. nginx skickar vidare till
+# API:t inne i klustret och lägger på X-API-KEY - nyckeln syns aldrig i
+# webbläsaren och ingen CORS behövs.
+api:
+  # Service-adressen till CQRSApi i klustret (release cqrs-api, namespace cqrs).
+  upstream: http://cqrs-api.cqrs.svc.cluster.local
+  # Skickas som X-API-KEY på alla anrop till /api/... (hamnar i en Secret).
+  key: cqrs_reader
+  # Peka på en befintlig Secret istället för att lägga nyckeln i values.
+  existingSecret: ""
+  existingSecretKey: apiKey
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: traefik
+  host: cqrsclient.local
+  path: /
+  annotations: {}
+  tls: []
+
+probes:
+  path: /healthz
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 16Mi
+  limits:
+    cpu: 200m
+    memory: 64Mi
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

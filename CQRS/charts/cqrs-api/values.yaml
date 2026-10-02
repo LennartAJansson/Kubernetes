@@ -37,6 +37,9 @@ database:
   existingSecret: ""
   existingSecretKey: connectionString
 
+apikey:
+  value: "cqrs_reader"
+
 # --- Skriv-sidan: kommandon på NATS JetStream ---------------------------------
 nats:
   url: nats://nats.nats.svc.cluster.local:4222

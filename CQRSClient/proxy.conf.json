@@ -1,0 +1,9 @@
+{
+  "/api": {
+    "target": "http://cqrsapi.local",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": { "^/api": "" },
+    "headers": { "X-API-KEY": "cqrs_reader" }
+  }
+}

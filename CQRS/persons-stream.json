@@ -1,0 +1,46 @@
+{
+  "config": {
+    "name": "PERSONS",
+    "subjects": [
+      "persons.cmd.\u003e"
+    ],
+    "retention": "workqueue",
+    "max_consumers": -1,
+    "max_msgs_per_subject": -1,
+    "max_msgs": -1,
+    "max_bytes": -1,
+    "max_age": 0,
+    "max_msg_size": -1,
+    "storage": "file",
+    "discard": "old",
+    "num_replicas": 1,
+    "duplicate_window": 120000000000,
+    "sealed": false,
+    "deny_delete": false,
+    "deny_purge": false,
+    "allow_rollup_hdrs": false,
+    "allow_direct": false,
+    "mirror_direct": false,
+    "metadata": {
+      "_nats.level": "5",
+      "_nats.req.level": "0",
+      "_nats.ver": "2.15.0"
+    },
+    "consumer_limits": {}
+  },
+  "created": "2026-09-25T10:48:44.732438045Z",
+  "state": {
+    "messages": 0,
+    "bytes": 0,
+    "first_seq": 3,
+    "first_ts": "0001-01-01T00:00:00Z",
+    "last_seq": 2,
+    "last_ts": "2026-09-28T09:37:12.246408077Z",
+    "consumer_count": 1
+  },
+  "cluster": {
+    "leader": "nats-0"
+  },
+  "ts": "2026-09-29T15:13:13.157825627Z"
+}
+

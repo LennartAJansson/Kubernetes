@@ -2,6 +2,7 @@ using CQRSApi.Contracts;
 using CQRSApi.Messaging;
 using CQRSApi.Queries;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Http;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Net;
@@ -54,6 +55,34 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("OpenApi
 if (corsEnabled)
 {
     app.UseCors();
+}
+
+// Protect the /persons endpoint group with an API key when configured.
+// The key is read from configuration "ApiKey:Value" (supports UserSecrets / env var ApiKey__Value / Helm values).
+var apiKey = builder.Configuration.GetValue<string>("ApiKey:Value");
+if (!string.IsNullOrWhiteSpace(apiKey))
+{
+    app.Use(async (ctx, next) =>
+    {
+        if (ctx.Request.Path.StartsWithSegments("/persons", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!ctx.Request.Headers.TryGetValue("X-API-Key", out var provided) || provided.Count == 0 || string.IsNullOrWhiteSpace(provided.ToString()))
+            {
+                ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await ctx.Response.WriteAsync("API key required");
+                return;
+            }
+
+            if (!string.Equals(provided.ToString(), apiKey, StringComparison.Ordinal))
+            {
+                ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await ctx.Response.WriteAsync("Invalid API key");
+                return;
+            }
+        }
+
+        await next();
+    });
 }
 
 app.MapGet("/healthz", () => TypedResults.Ok("ok")).ExcludeFromDescription();

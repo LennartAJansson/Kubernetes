@@ -1,4 +1,25 @@
 <Solution>
+  <Folder Name="/Deploy/">
+    <File Path="build.ps1" />
+    <File Path="README.md" />
+    <File Path="setup-db.ps1" />
+  </Folder>
+  <Folder Name="/Deploy/api/">
+    <File Path="charts/cqrs-api/templates/deployment.yaml" />
+    <File Path="charts/cqrs-api/templates/ingress.yaml" />
+    <File Path="charts/cqrs-api/templates/NOTES.txt" />
+    <File Path="charts/cqrs-api/templates/secret.yaml" />
+    <File Path="charts/cqrs-api/templates/service.yaml" />
+    <File Path="charts/cqrs-api/templates/_helpers.tpl" />
+    <File Path="charts/cqrs-api/values.yaml" />
+  </Folder>
+  <Folder Name="/Deploy/worker/">
+    <File Path="charts/cqrs-worker/templates/deployment.yaml" />
+    <File Path="charts/cqrs-worker/templates/NOTES.txt" />
+    <File Path="charts/cqrs-worker/templates/secret.yaml" />
+    <File Path="charts/cqrs-worker/templates/_helpers.tpl" />
+    <File Path="charts/cqrs-worker/values.yaml" />
+  </Folder>
   <Project Path="CQRSApi/CQRSApi.csproj" />
   <Project Path="CQRSWorker/CQRSWorker.csproj" />
 </Solution>

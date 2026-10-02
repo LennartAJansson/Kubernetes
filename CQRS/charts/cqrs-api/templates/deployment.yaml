@@ -36,6 +36,8 @@ spec:
                 secretKeyRef:
                   name: {{ include "cqrs-api.secretName" . }}
                   key: {{ .Values.database.existingSecretKey }}
+            - name: ApiKey__Value
+              value: {{ .Values.apikey.value | quote }}
             # --- Skriv-sidan (NATS JetStream) ---
             - name: Nats__Url
               value: {{ .Values.nats.url | quote }}

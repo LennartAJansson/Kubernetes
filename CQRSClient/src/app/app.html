@@ -1,0 +1,119 @@
+<div class="app-shell">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand"><span class="brand-mark">P</span><span>Personregister</span></div>
+      <span class="topbar-label">Administration</span>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <div class="page-heading">
+      <div>
+        <span class="eyebrow">ÖVERSIKT</span>
+        <h1>Personer</h1>
+        <p class="page-subtitle">Hantera personuppgifter i registret.</p>
+      </div>
+      <button class="button button-primary" type="button" (click)="openCreate()">+ Lägg till person</button>
+    </div>
+
+    @if (notice()) {
+      <div class="message message-success" role="status">
+        <span>{{ notice() }}</span>
+        <button type="button" class="message-close" aria-label="Stäng meddelande" (click)="notice.set('')">×</button>
+      </div>
+    }
+    @if (error() && !formOpen && !deleteTarget) {
+      <div class="message message-error" role="alert">{{ error() }}</div>
+    }
+
+    <section class="registry" aria-label="Personlista">
+      <div class="registry-toolbar">
+        <div class="registry-title">
+          <h2>Alla personer</h2>
+          <span class="count">{{ persons().length }}</span>
+        </div>
+        <div class="toolbar-actions">
+          <label class="sr-only" for="person-search">Sök personer</label>
+          <input id="person-search" class="search-field" type="search" placeholder="Sök namn eller e-post" [ngModel]="search()" (ngModelChange)="search.set($event)" />
+          <button class="button button-secondary" type="button" (click)="loadPersons()" [disabled]="loading()">Uppdatera</button>
+        </div>
+      </div>
+
+      @if (loading() && !persons().length) {
+        <div class="empty-state" role="status">Hämtar personer…</div>
+      } @else if (!filteredPersons().length) {
+        <div class="empty-state">
+          @if (search()) {
+            <h3>Inga träffar</h3>
+            <p>Prova ett annat namn eller en annan e-postadress.</p>
+          } @else if (!error()) {
+            <h3>Inga personer ännu</h3>
+            <p>Lägg till den första personen i registret.</p>
+            <button class="button button-secondary" type="button" (click)="openCreate()">Lägg till person</button>
+          }
+        </div>
+      } @else {
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th scope="col">Namn</th><th scope="col">E-post</th><th scope="col">Skapad</th><th scope="col" class="actions-heading">Åtgärder</th></tr></thead>
+            <tbody>
+              @for (person of filteredPersons(); track person.id ?? $index) {
+                <tr>
+                  <td><div class="person-cell"><span class="avatar" aria-hidden="true">{{ initials(person) }}</span><span class="person-name">{{ fullName(person) }}</span></div></td>
+                  <td class="email-cell">{{ person.email || '—' }}</td>
+                  <td class="date-cell">{{ createdDate(person.createdAt) }}</td>
+                  <td class="row-actions">
+                    <button type="button" class="action-button" [disabled]="!person.id" [attr.aria-label]="'Redigera ' + fullName(person)" (click)="openEdit(person)">Redigera</button>
+                    <button type="button" class="action-button action-danger" [disabled]="!person.id" [attr.aria-label]="'Radera ' + fullName(person)" (click)="confirmDelete(person)">Radera</button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <div class="registry-footer">Visar {{ filteredPersons().length }} av {{ persons().length }} personer @if (loading()) { · Uppdaterar… }</div>
+      }
+    </section>
+  </main>
+
+  @if (formOpen) {
+    <div class="dialog-backdrop">
+      <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="person-dialog-title">
+        <div class="dialog-heading">
+          <div><span class="eyebrow">PERSONUPPGIFTER</span><h2 id="person-dialog-title">{{ editingId ? 'Redigera person' : 'Lägg till person' }}</h2></div>
+          <button type="button" class="icon-close" aria-label="Stäng" [disabled]="saving()" (click)="closeForm()">×</button>
+        </div>
+        <form #personForm="ngForm" (ngSubmit)="savePerson()">
+          <div class="form-fields">
+            <label for="first-name">Förnamn <span aria-hidden="true">*</span></label>
+            <input id="first-name" name="firstName" type="text" required maxlength="100" autocomplete="given-name" [(ngModel)]="form.firstName" autofocus />
+            <label for="last-name">Efternamn <span aria-hidden="true">*</span></label>
+            <input id="last-name" name="lastName" type="text" required maxlength="100" autocomplete="family-name" [(ngModel)]="form.lastName" />
+            <label for="email">E-post</label>
+            <input id="email" name="email" type="email" maxlength="254" autocomplete="email" [(ngModel)]="form.email" placeholder="namn@exempel.se" />
+            <p class="field-hint">Fält markerade med * är obligatoriska.</p>
+            @if (error()) { <p class="form-error" role="alert">{{ error() }}</p> }
+          </div>
+          <div class="dialog-actions">
+            <button type="button" class="button button-secondary" [disabled]="saving()" (click)="closeForm()">Avbryt</button>
+            <button type="submit" class="button button-primary" [disabled]="personForm.invalid || saving()">{{ saving() ? 'Sparar…' : (editingId ? 'Spara ändringar' : 'Lägg till person') }}</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  }
+
+  @if (deleteTarget) {
+    <div class="dialog-backdrop">
+      <section class="dialog dialog-small" role="alertdialog" aria-modal="true" aria-labelledby="delete-dialog-title" aria-describedby="delete-dialog-description">
+        <div class="dialog-heading"><div><span class="eyebrow">BEKRÄFTA ÅTGÄRD</span><h2 id="delete-dialog-title">Radera person?</h2></div></div>
+        <p id="delete-dialog-description" class="dialog-description">Vill du radera <strong>{{ fullName(deleteTarget) }}</strong>? Åtgärden kan inte ångras.</p>
+        @if (error()) { <p class="form-error" role="alert">{{ error() }}</p> }
+        <div class="dialog-actions">
+          <button type="button" class="button button-secondary" [disabled]="saving()" (click)="deleteTarget = null">Avbryt</button>
+          <button type="button" class="button button-delete" [disabled]="saving()" (click)="deletePerson()">{{ saving() ? 'Raderar…' : 'Radera person' }}</button>
+        </div>
+      </section>
+    </div>
+  }
+</div>
