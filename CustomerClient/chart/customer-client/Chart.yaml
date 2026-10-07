@@ -1,0 +1,6 @@
+apiVersion: v2
+name: customer-client
+description: CustomerClient - Angular-frontend för TelemetryApi med Grafana Faro, serverad av nginx
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

@@ -1,0 +1,164 @@
+# =============================================================================
+# Grafana Faro Collector - webblasartelemetri for namespace "monitoring"
+# k3d-home
+# =============================================================================
+#
+# Faro-SDK:n i webblasaren skickar sitt eget format, inte OTLP. Denna collector
+# tar emot det pa /collect och oversatter till OTLP, som skickas vidare till
+# otel-collector. Darmed hamnar frontend-spans i samma trace som API-anropen.
+#
+# Detta ar en separat instans fran otel-collector av tva skal: den ar exponerad
+# mot internet och bor darfor skalas och skyddas for sig, och den behover
+# faroreceiver-komponenten som bara finns i contrib-bilden.
+#
+# EXPONERING: Service:n ar ClusterIP. Frontenden nar den via Ingress - lagg till
+# ett Ingress-objekt med TLS for din domän. Utan HTTPS vagrar webblasaren
+# skicka telemetri fran en HTTPS-sida.
+# =============================================================================
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: faro-collector-config
+  namespace: monitoring
+  labels:
+    app: faro-collector
+data:
+  faro-collector-config.yaml: |
+    receivers:
+      faro:
+        endpoint: 0.0.0.0:8080
+        # Webblasaren gor preflight mot denna endpoint. Listan maste innehalla
+        # frontendens exakta origin, inklusive protokoll och port.
+        # TRIMMAD för k3d-home: bara *.local-varianterna behövs här (k3s-
+        # mappens *.ubk3s-poster är irrelevanta för det här klustret).
+        cors:
+          allowed_origins:
+            - https://*.local
+            - http://*.local
+            - http://localhost:*
+            - https://localhost:*
+          allowed_headers:
+            - "*"
+
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+
+      # Utan detta far all webblasartelemetri tjanstenamnet "unknown_service",
+      # och gar inte att skilja fran backend-signalerna i Grafana.
+      # ANDRAD: insert istallet for upsert - satter "frontend" bara om appen
+      # inte sjalv angett ett namn. Faro skickar app.name (t.ex.
+      # "customer-client") som service.name, och det ska fa vinna.
+      resource:
+        attributes:
+          - key: service.name
+            value: frontend
+            action: insert
+          - key: telemetry.sdk.name
+            value: grafana-faro
+            action: upsert
+
+      batch:
+        timeout: 5s
+        send_batch_size: 8192
+
+    exporters:
+      # Traces och loggar gar vidare till huvudcollectorn, som i sin tur
+      # fordelar dem till Tempo respektive Loki.
+      otlp/collector:
+        endpoint: otel-collector.monitoring.svc.cluster.local:4317
+        tls:
+          insecure: true
+
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    service:
+      extensions: [health_check]
+      pipelines:
+        traces:
+          receivers: [faro]
+          processors: [memory_limiter, resource, batch]
+          exporters: [otlp/collector]
+        logs:
+          receivers: [faro]
+          processors: [memory_limiter, resource, batch]
+          exporters: [otlp/collector]
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: faro-collector
+  namespace: monitoring
+  labels:
+    app: faro-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: faro-collector
+  template:
+    metadata:
+      labels:
+        app: faro-collector
+      annotations:
+        configmap/revision: "2"
+    spec:
+      containers:
+        - name: faro-collector
+          image: otel/opentelemetry-collector-contrib:0.160.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --config=/etc/otelcol/faro-collector-config.yaml
+          ports:
+            - name: faro
+              containerPort: 8080
+              protocol: TCP
+            - name: health
+              containerPort: 13133
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: faro-collector-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: faro-collector
+  namespace: monitoring
+  labels:
+    app: faro-collector
+spec:
+  # Atkomst sker via Ingress pa faro.local, inte via NodePort.
+  type: ClusterIP
+  selector:
+    app: faro-collector
+  ports:
+    - name: faro
+      port: 8080
+      targetPort: faro
+      protocol: TCP

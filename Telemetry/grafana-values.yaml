@@ -1,0 +1,72 @@
+persistence:
+  enabled: true
+  # RÄTTAD för k3d-home: local-shared-path -> local-path.
+  storageClassName: "local-path"
+  size: 2Gi
+
+env:
+  GF_SECURITY_ADMIN_USER: "admin"
+  GF_SECURITY_ADMIN_PASSWORD: "admin"
+  # ÄNDRAD för k3d-home: grafana.ubk3s -> grafana.local.
+  GF_SERVER_ROOT_URL: "https://grafana.local"
+  GF_FEATURE_TOGGLES_ENABLE: "traceqlEditor"
+
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        uid: prometheus
+        access: proxy
+        # Samma korrigering som på ubk3s-home (bugg K): Servicen exponerar
+        # bara port 80 (mappar internt till 9090).
+        url: http://telemetry-prometheus-server:80
+        isDefault: true
+        jsonData:
+          timeInterval: 15s
+          exemplarTraceIdDestinations:
+            - name: trace_id
+              datasourceUid: tempo
+
+      - name: Loki
+        type: loki
+        uid: loki
+        access: proxy
+        # Samma korrigering som på ubk3s-home (bugg K): Nginx-gatewayen
+        # exponeras på port 80, inte 8080.
+        url: http://telemetry-loki-gateway:80
+        jsonData:
+          derivedFields:
+            - name: TraceID
+              matcherType: label
+              matcherRegex: trace_id
+              # ÄNDRAD för k3d-home: grafana.ubk3s -> grafana.local.
+              url: "https://grafana.local/explore?left=%5B%22now-1h%22,%22now%22,%22Tempo%22,%7B%22query%22:%22${__value.raw}%22%7D%5D"
+              datasourceUid: tempo
+
+      - name: Tempo
+        type: tempo
+        uid: tempo
+        access: proxy
+        url: http://telemetry-tempo:3200
+        jsonData:
+          tracesToLogsV2:
+            datasourceUid: loki
+            spanStartTimeShift: -5m
+            spanEndTimeShift: 5m
+            filterByTraceID: true
+            tags:
+              - key: service.name
+                value: service_name
+          tracesToMetrics:
+            datasourceUid: prometheus
+            spanStartTimeShift: -5m
+            spanEndTimeShift: 5m
+            tags:
+              - key: service.name
+                value: service_name
+          serviceMap:
+            datasourceUid: prometheus
+          nodeGraph:
+            enabled: true

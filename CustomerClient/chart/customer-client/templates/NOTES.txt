@@ -1,0 +1,11 @@
+CustomerClient är installerad i namespace {{ .Release.Namespace }}.
+{{- if .Values.ingress.enabled }}
+
+  http://{{ .Values.ingress.host }}
+
+Kom ihåg raden i hosts-filen:  127.0.0.1  {{ .Values.ingress.host }}
+{{- end }}
+
+nginx skickar /api/...  till {{ .Values.api.upstream }}
+         och /faro/... till {{ .Values.faro.upstream }}
+Webbläsarens spans hamnar i Tempo som service.name=customer-client.

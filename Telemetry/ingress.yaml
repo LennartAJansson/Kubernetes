@@ -1,0 +1,170 @@
+# =============================================================================
+# Ingress för monitoreringsstacken - k3d-home (*.local istället för *.ubk3s)
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - grafana.local
+  rules:
+    - host: grafana.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: telemetry-grafana
+                port:
+                  number: 80
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - prometheus.local
+  rules:
+    - host: prometheus.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: telemetry-prometheus-server
+                port:
+                  number: 80
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: loki
+  namespace: monitoring
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - loki.local
+  rules:
+    - host: loki.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: telemetry-loki-gateway
+                port:
+                  number: 80
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tempo
+  namespace: monitoring
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - tempo.local
+  rules:
+    - host: tempo.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: telemetry-tempo
+                port:
+                  # Samma port som ubk3s-home (bugg L/G) - Tempo-charten
+                  # mappar INTE om till 80, Servicens riktiga query/HTTP-
+                  # API-port är 3200.
+                  number: 3200
+
+---
+# OTLP/HTTP.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: otel-http
+  namespace: monitoring
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - otel.local
+  rules:
+    - host: otel.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: otel-collector
+                port:
+                  number: 4318
+
+---
+# OTLP/gRPC via Ingress.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: otel-grpc
+  namespace: monitoring
+  annotations:
+    traefik.ingress.kubernetes.io/service.serversscheme: h2c
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - otel-grpc.local
+  rules:
+    - host: otel-grpc.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: otel-collector
+                port:
+                  number: 4317
+
+---
+# Faro-collectorn.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: faro-collector
+  namespace: monitoring
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - faro.local
+  rules:
+    - host: faro.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: faro-collector
+                port:
+                  number: 8080

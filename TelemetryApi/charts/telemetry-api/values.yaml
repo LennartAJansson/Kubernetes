@@ -1,0 +1,68 @@
+# =============================================================================
+# Values för TelemetryApi. Allt kan överstyras med --set eller -f egna-values.yaml.
+# =============================================================================
+
+replicaCount: 2
+
+image:
+  # Adressen som klustrets NODER använder för att hämta imagen (inte push-adressen).
+  repository: registry:5000/telemetryapi
+  # Tom = Chart.appVersion. build.ps1 sätter den till versionen som just byggdes.
+  tag: ""
+  pullPolicy: Always
+
+# Porten Kestrel lyssnar på i containern (ASPNETCORE_HTTP_PORTS).
+containerPort: 8080
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: traefik
+  host: telemetryapi.local
+  path: /
+  annotations: {}
+  tls: []
+
+# --- Databas: EF Core mot MySQL (skapas av setup-db.ps1) -----------------------
+database:
+  connectionString: "Server=mysql.mysql.svc.cluster.local;Port=3306;Database=customers;User ID=customers_app;Password=customers-pwd;AllowPublicKeyRetrieval=True"
+  # Peka på en befintlig Secret istället för att lägga strängen i values.
+  existingSecret: ""
+  existingSecretKey: connectionString
+
+# --- OpenTelemetry ----------------------------------------------------------------
+# Blir standardiserade OTEL_*-miljövariabler som OpenTelemetry-SDK:n läser själv.
+telemetry:
+  enabled: true
+  # service.name i Tempo, Loki och Prometheus.
+  serviceName: telemetry-api
+  # otel-collectorn i namespace monitoring (Telemetry\otel-collector.yaml).
+  otlpEndpoint: http://otel-collector.monitoring.svc.cluster.local:4317
+  # grpc (port 4317) eller http/protobuf (port 4318)
+  otlpProtocol: grpc
+
+# Visa OpenAPI-dokumentet och Scalar-UI:t (/scalar) även utanför Development.
+openApi:
+  enabled: true
+
+# Extra miljövariabler, t.ex. { Logging__LogLevel__Default: Debug }
+extraEnv: {}
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 384Mi
+
+probes:
+  path: /healthz
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

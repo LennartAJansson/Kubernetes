@@ -1,0 +1,6 @@
+apiVersion: v2
+name: telemetry-api
+description: TelemetryApi - CRUD-API för Customer med OpenTelemetry (traces, metrics, loggar)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/Deploy/">
+    <File Path="build.ps1" />
+    <File Path="README.md" />
+    <File Path="setup-db.ps1" />
+  </Folder>
+  <Folder Name="/Deploy/chart/">
+    <File Path="charts/telemetry-api/Chart.yaml" />
+    <File Path="charts/telemetry-api/values.yaml" />
+    <File Path="charts/telemetry-api/templates/deployment.yaml" />
+    <File Path="charts/telemetry-api/templates/ingress.yaml" />
+    <File Path="charts/telemetry-api/templates/NOTES.txt" />
+    <File Path="charts/telemetry-api/templates/secret.yaml" />
+    <File Path="charts/telemetry-api/templates/service.yaml" />
+    <File Path="charts/telemetry-api/templates/_helpers.tpl" />
+  </Folder>
+  <Project Path="TelemetryApi/TelemetryApi.csproj" />
+</Solution>

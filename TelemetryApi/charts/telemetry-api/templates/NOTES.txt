@@ -1,0 +1,13 @@
+TelemetryApi är installerat i namespace {{ .Release.Namespace }}.
+{{- if .Values.ingress.enabled }}
+
+  http://{{ .Values.ingress.host }}/customers
+  http://{{ .Values.ingress.host }}/scalar   (om openApi.enabled)
+
+Kom ihåg raden i hosts-filen:  127.0.0.1  {{ .Values.ingress.host }}
+{{- end }}
+{{- if .Values.telemetry.enabled }}
+
+Telemetri: service.name={{ .Values.telemetry.serviceName }} -> {{ .Values.telemetry.otlpEndpoint }} ({{ .Values.telemetry.otlpProtocol }})
+Grafana:   https://grafana.local  ->  Explore -> Tempo / Loki / Prometheus
+{{- end }}

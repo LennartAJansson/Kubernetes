@@ -1,0 +1,14 @@
+{
+  "/api": {
+    "target": "http://telemetryapi.local",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": { "^/api": "" }
+  },
+  "/faro": {
+    "target": "https://faro.local",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": { "^/faro": "" }
+  }
+}

@@ -1,0 +1,125 @@
+<div class="app-shell">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand"><span class="brand-mark">K</span><span>Kundregister</span></div>
+      <span class="topbar-label">TelemetryApi · Grafana Faro</span>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <div class="page-heading">
+      <div>
+        <span class="eyebrow">ÖVERSIKT</span>
+        <h1>Kunder</h1>
+        <p class="page-subtitle">Varje klick blir en trace - från webbläsaren, genom API:t, till databasen.</p>
+      </div>
+      <button class="button button-primary" type="button" (click)="openCreate()">+ Lägg till kund</button>
+    </div>
+
+    @if (notice()) {
+      <div class="message message-success" role="status">
+        <span>{{ notice() }}</span>
+        <button type="button" class="message-close" aria-label="Stäng meddelande" (click)="notice.set('')">×</button>
+      </div>
+    }
+    @if (error() && !formOpen && !deleteTarget) {
+      <div class="message message-error" role="alert">{{ error() }}</div>
+    }
+
+    <section class="registry" aria-label="Kundlista">
+      <div class="registry-toolbar">
+        <div class="registry-title">
+          <h2>Alla kunder</h2>
+          <span class="count">{{ customers().length }}</span>
+        </div>
+        <div class="toolbar-actions">
+          <label class="sr-only" for="customer-search">Sök kunder</label>
+          <input id="customer-search" class="search-field" type="search" placeholder="Sök namn, e-post eller stad" [ngModel]="search()" (ngModelChange)="search.set($event)" />
+          <button class="button button-secondary" type="button" (click)="loadCustomers()" [disabled]="loading()">Uppdatera</button>
+          <button class="button button-secondary" type="button" (click)="runSlow()" title="GET /api/demo/slow">Långsamt anrop</button>
+          <button class="button button-secondary" type="button" (click)="runError()" title="GET /api/demo/error">Orsaka fel</button>
+        </div>
+      </div>
+
+      @if (loading() && !customers().length) {
+        <div class="empty-state" role="status">Hämtar kunder…</div>
+      } @else if (!filteredCustomers().length) {
+        <div class="empty-state">
+          @if (search()) {
+            <h3>Inga träffar</h3>
+            <p>Prova ett annat namn, en annan e-postadress eller stad.</p>
+          } @else if (!error()) {
+            <h3>Inga kunder ännu</h3>
+            <p>Lägg till den första kunden i registret.</p>
+            <button class="button button-secondary" type="button" (click)="openCreate()">Lägg till kund</button>
+          }
+        </div>
+      } @else {
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th scope="col">Namn</th><th scope="col">E-post</th><th scope="col">Telefon</th><th scope="col">Stad</th><th scope="col">Skapad</th><th scope="col" class="actions-heading">Åtgärder</th></tr></thead>
+            <tbody>
+              @for (customer of filteredCustomers(); track customer.id) {
+                <tr>
+                  <td><div class="person-cell"><span class="avatar" aria-hidden="true">{{ initials(customer) }}</span><span class="person-name">{{ customer.name }}</span></div></td>
+                  <td class="email-cell">{{ customer.email || '—' }}</td>
+                  <td class="email-cell">{{ customer.phone || '—' }}</td>
+                  <td class="email-cell">{{ customer.city || '—' }}</td>
+                  <td class="date-cell">{{ createdDate(customer.createdAt) }}</td>
+                  <td class="row-actions">
+                    <button type="button" class="action-button" [attr.aria-label]="'Redigera ' + customer.name" (click)="openEdit(customer)">Redigera</button>
+                    <button type="button" class="action-button action-danger" [attr.aria-label]="'Radera ' + customer.name" (click)="confirmDelete(customer)">Radera</button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <div class="registry-footer">Visar {{ filteredCustomers().length }} av {{ customers().length }} kunder @if (loading()) { · Uppdaterar… }</div>
+      }
+    </section>
+  </main>
+
+  @if (formOpen) {
+    <div class="dialog-backdrop">
+      <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="customer-dialog-title">
+        <div class="dialog-heading">
+          <div><span class="eyebrow">KUNDUPPGIFTER</span><h2 id="customer-dialog-title">{{ editingId ? 'Redigera kund' : 'Lägg till kund' }}</h2></div>
+          <button type="button" class="icon-close" aria-label="Stäng" [disabled]="saving()" (click)="closeForm()">×</button>
+        </div>
+        <form #customerForm="ngForm" (ngSubmit)="saveCustomer()">
+          <div class="form-fields">
+            <label for="name">Namn <span aria-hidden="true">*</span></label>
+            <input id="name" name="name" type="text" required maxlength="200" autocomplete="organization" [(ngModel)]="form.name" autofocus />
+            <label for="email">E-post</label>
+            <input id="email" name="email" type="email" maxlength="200" autocomplete="email" [(ngModel)]="form.email" placeholder="namn@exempel.se" />
+            <label for="phone">Telefon</label>
+            <input id="phone" name="phone" type="tel" maxlength="50" autocomplete="tel" [(ngModel)]="form.phone" />
+            <label for="city">Stad</label>
+            <input id="city" name="city" type="text" maxlength="100" autocomplete="address-level2" [(ngModel)]="form.city" />
+            <p class="field-hint">Fält markerade med * är obligatoriska.</p>
+            @if (error()) { <p class="form-error" role="alert">{{ error() }}</p> }
+          </div>
+          <div class="dialog-actions">
+            <button type="button" class="button button-secondary" [disabled]="saving()" (click)="closeForm()">Avbryt</button>
+            <button type="submit" class="button button-primary" [disabled]="customerForm.invalid || saving()">{{ saving() ? 'Sparar…' : (editingId ? 'Spara ändringar' : 'Lägg till kund') }}</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  }
+
+  @if (deleteTarget) {
+    <div class="dialog-backdrop">
+      <section class="dialog dialog-small" role="alertdialog" aria-modal="true" aria-labelledby="delete-dialog-title" aria-describedby="delete-dialog-description">
+        <div class="dialog-heading"><div><span class="eyebrow">BEKRÄFTA ÅTGÄRD</span><h2 id="delete-dialog-title">Radera kund?</h2></div></div>
+        <p id="delete-dialog-description" class="dialog-description">Vill du radera <strong>{{ deleteTarget.name }}</strong>? Åtgärden kan inte ångras.</p>
+        @if (error()) { <p class="form-error" role="alert">{{ error() }}</p> }
+        <div class="dialog-actions">
+          <button type="button" class="button button-secondary" [disabled]="saving()" (click)="deleteTarget = null">Avbryt</button>
+          <button type="button" class="button button-delete" [disabled]="saving()" (click)="deleteCustomer()">{{ saving() ? 'Raderar…' : 'Radera kund' }}</button>
+        </div>
+      </section>
+    </div>
+  }
+</div>

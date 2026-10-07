@@ -1,0 +1,59 @@
+# Lokalt (dotnet run):           http://localhost:5290
+# I klustret via Traefik-ingress: http://telemetryapi.local  (kräver rad i hosts-filen)
+@host = http://telemetryapi.local
+
+### Lista kunder
+GET {{host}}/customers
+Accept: application/json
+
+### Sök (namn eller stad)
+GET {{host}}/customers?search=göteborg
+Accept: application/json
+
+### Skapa en kund - svarar 201 Created
+# @name create
+POST {{host}}/customers
+Content-Type: application/json
+
+{
+  "name": "Ada Lovelace",
+  "email": "ada@example.com",
+  "phone": "070-123 45 67",
+  "city": "Göteborg"
+}
+
+### Hämta kunden som just skapades
+GET {{host}}/customers/{{create.response.body.$.id}}
+Accept: application/json
+
+### Uppdatera
+PUT {{host}}/customers/{{create.response.body.$.id}}
+Content-Type: application/json
+
+{
+  "name": "Ada King",
+  "email": "ada.king@example.com",
+  "phone": "070-123 45 67",
+  "city": "Stockholm"
+}
+
+### Ta bort - 204 No Content
+DELETE {{host}}/customers/{{create.response.body.$.id}}
+
+### Valideringsfel - 400, eget span "customers.validate" markerat som fel
+POST {{host}}/customers
+Content-Type: application/json
+
+{
+  "name": "",
+  "email": "inte-en-adress"
+}
+
+### Långsamt anrop - syns som ett långt span i Tempo
+GET {{host}}/demo/slow?ms=2000
+
+### Undantag - 500, rött span i Tempo och stacktrace i Loki
+GET {{host}}/demo/error
+
+### Hälsokoll (filtreras bort ur traces)
+GET {{host}}/healthz

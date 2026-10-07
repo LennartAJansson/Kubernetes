@@ -1,0 +1,70 @@
+# =============================================================================
+# Global TLS for traefik - k3d-home
+# =============================================================================
+#
+# En TLSStore med namnet "default" ar sarskild i traefik: certifikatet i den
+# anvands som standardcertifikat for alla HTTPS-ingresser som inte sjalva anger
+# en "tls.secretName". Det ar darfor ingen av ingresserna i denna mapps
+# ingress.yaml behover peka ut certifikatet - de ardver det harifran.
+#
+# TLSStore MASTE ligga i samma namnutrymme som traefik, alltsa kube-system.
+# Ligger den nagon annanstans hittar traefik den inte, och du far traefiks
+# sjalvsignerade standardcertifikat i stallet - vilket ser ut som att
+# konfigurationen fungerar tills webblasaren varnar om ett ogiltigt cert.
+#
+# -----------------------------------------------------------------------------
+# Forberedelser (skots automatiskt av deploy-telemetry.ps1 steg 2)
+# -----------------------------------------------------------------------------
+#
+# 1. Skapa certifikat med mkcert:
+#
+#      mkcert -install
+#      mkcert -cert-file C:\data\shared\certs\tls.crt `
+#             -key-file  C:\data\shared\certs\tls.key `
+#             "*.local" grafana.local prometheus.local loki.local `
+#             tempo.local otel.local otel-grpc.local faro.local
+#
+#    Notera att "*.local" inte tacker "a.b.local" - wildcard matchar bara en
+#    niva. Behover du djupare namn maste de skrivas ut explicit.
+#
+#    "mkcert -install" lagger mkcerts rot-CA i Windows certifikatlager. Utan
+#    det steget ar certifikatet tekniskt korrekt men inte betrott, och
+#    webblasaren varnar anda. Detta ar en EGEN rot-CA, skild fran den som
+#    anvands pa ubk3s-home (den genererades separat pa Ubuntu-servern).
+#
+# 2. Skapa hemligheten i kube-system:
+#
+#      kubectl create secret tls local-tls-secret `
+#        --cert=C:\data\shared\certs\tls.crt `
+#        --key=C:\data\shared\certs\tls.key `
+#        -n kube-system
+#
+# 3. Applicera denna fil (gors av deploy-telemetry.ps1 steg 2):
+#
+#      kubectl apply -f traefik-tls.yaml
+#
+# -----------------------------------------------------------------------------
+# Verifiera
+# -----------------------------------------------------------------------------
+#
+#   kubectl get secret local-tls-secret -n kube-system
+#   curl -v https://grafana.local 2>&1 | Select-String "subject:|issuer:"
+#
+# Ser du "CN=TRAEFIK DEFAULT CERT" i utdatan har traefik inte hittat din
+# TLSStore. Kontrollera namnutrymmet och att hemligheten heter exakt
+# "local-tls-secret".
+#
+# Om grafana.local/prometheus.local/etc inte slar igenom i webblasaren:
+# lagg till dem i C:\Windows\System32\drivers\etc\hosts (kraver admin):
+#   127.0.0.1 grafana.local prometheus.local loki.local tempo.local otel.local otel-grpc.local faro.local registry.local
+# =============================================================================
+
+apiVersion: traefik.io/v1alpha1
+kind: TLSStore
+metadata:
+  # Namnet "default" ar betydelsebarande - byt det inte.
+  name: default
+  namespace: kube-system
+spec:
+  defaultCertificate:
+    secretName: local-tls-secret

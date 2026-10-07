@@ -1,0 +1,50 @@
+# =============================================================================
+# Values för CustomerClient (Angular + nginx + Grafana Faro).
+# =============================================================================
+
+replicaCount: 2
+
+image:
+  # Adressen klustrets NODER hämtar imagen från (inte push-adressen).
+  repository: registry:5000/customerclient
+  tag: ""            # tom = Chart.appVersion, build.ps1 sätter versionen
+  pullPolicy: Always
+
+containerPort: 80
+
+# --- Proxies i nginx --------------------------------------------------------------
+# Webbläsaren anropar bara customerclient.local. nginx skickar vidare:
+#   /api/...  -> TelemetryApi            (release telemetry-api, namespace customers)
+#   /faro/... -> faro-collectorn         (Telemetry\faro-collector.yaml)
+api:
+  upstream: http://telemetry-api.customers.svc.cluster.local
+faro:
+  upstream: http://faro-collector.monitoring.svc.cluster.local:8080
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: traefik
+  host: customerclient.local
+  path: /
+  annotations: {}
+  tls: []
+
+probes:
+  path: /healthz
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 16Mi
+  limits:
+    cpu: 200m
+    memory: 64Mi
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

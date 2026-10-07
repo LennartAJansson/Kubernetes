@@ -1,0 +1,376 @@
+# =============================================================================
+# OpenTelemetry Collector - komplett manifest för namespace "monitoring"
+# k3d-home - INNEHÅLLET ÄR OFÖRÄNDRAT mot k3s-mappens otel-collector.yaml.
+# CORS-listan nedan använde redan bara *.local + localhost, inte *.ubk3s,
+# så ingen ändring behövdes för att porta den hit.
+# =============================================================================
+#
+# Tar emot OTLP/gRPC på 4317 från .NET-tjänsterna (Company.Telemetry) och
+# fördelar signalerna:
+#
+#   traces  -> Tempo   (OTLP/gRPC)
+#   metrics -> Prometheus (scrape på 8889 via ServiceMonitor)
+#   logs    -> Loki    (OTLP/HTTP)
+#
+# Applicera med:
+#   kubectl apply -f otel-collector.yaml
+#
+# Förutsätter att följande redan finns i klustret:
+#   - namespace "monitoring"
+#   - telemetry-tempo.monitoring.svc.cluster.local:4317   (Helm-release telemetry-tempo)
+#   - telemetry-loki-gateway.monitoring.svc.cluster.local (Loki 3.x, OTLP på /otlp)
+#   - telemetry-prometheus (prometheus-community/prometheus), som skrapar
+#     Servicen nedan tack vare annotationen prometheus.io/scrape.
+#
+# RÄTTAT för k3d-home (2026-10-04):
+#   - Tempo-adressen: Servicen heter telemetry-tempo (efter Helm-releasen),
+#     inte tempo.
+#   - Prometheus-annotationer på Service (port 8889, appernas metrics) och
+#     pod (port 8888, collectorns egna metrics). Utan dem hamnar inga
+#     applikations-metrics i Prometheus, eftersom vi inte kör
+#     kube-prometheus-stack och ServiceMonitor inte används.
+# =============================================================================
+
+---
+# -----------------------------------------------------------------------------
+# ServiceAccount + RBAC
+#
+# Krävs av k8sattributes-processorn, som slår upp pod-metadata via API-servern.
+# Det inbyggda "default"-kontot saknar dessa rättigheter.
+# -----------------------------------------------------------------------------
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: otel-collector
+  namespace: monitoring
+  labels:
+    app: otel-collector
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: otel-collector
+  labels:
+    app: otel-collector
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "namespaces", "nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: otel-collector
+  labels:
+    app: otel-collector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: otel-collector
+subjects:
+  - kind: ServiceAccount
+    name: otel-collector
+    namespace: monitoring
+
+---
+# -----------------------------------------------------------------------------
+# Pipeline-konfiguration
+# -----------------------------------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: monitoring
+  labels:
+    app: otel-collector
+data:
+  otel-collector-config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          # HTTP behövs för källor som inte talar gRPC, t.ex. webbläsare.
+          http:
+            endpoint: 0.0.0.0:4318
+            # Utan cors blockerar webbläsaren Faro-anropen i preflight.
+            # Ersätt med faktiska frontend-origins.
+            cors:
+              allowed_origins:
+                - http://localhost:*
+                - http://*.local
+                - https://localhost:*
+                - https://*.local
+              allowed_headers:
+                - "*"
+
+    processors:
+      # Skyddar collectorn mot OOM-kill vid trafiktoppar. Måste ligga först
+      # i pipelinen för att kunna utöva mottryck mot receivern.
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+
+      # Berikar telemetrin med pod, deployment och node. Kompletterar de
+      # resource-detektorer som biblioteket redan kör i processen.
+      k8sattributes:
+        auth_type: serviceAccount
+        passthrough: false
+        extract:
+          metadata:
+            - k8s.namespace.name
+            - k8s.pod.name
+            - k8s.pod.uid
+            - k8s.deployment.name
+            - k8s.node.name
+        pod_association:
+          - sources:
+              - from: resource_attribute
+                name: k8s.pod.uid
+          - sources:
+              - from: connection
+
+      batch:
+        timeout: 5s
+        send_batch_size: 8192
+
+    exporters:
+      prometheus:
+        endpoint: 0.0.0.0:8889
+        namespace: otel
+        # Utan denna blir inte service.namespace och deployment.environment
+        # till labels, och då går det inte att gruppera per miljö i Grafana
+        # eller larma per miljö i Alertmanager.
+        #
+        # 0.160 loggar en deprecation-varning och pekar på
+        # resource_constant_labels. Den kräver att varje label räknas upp
+        # explicit, medan denna tar med alla resursattribut. Byt när du vet
+        # exakt vilka labels du vill ha kvar.
+        resource_to_telemetry_conversion:
+          enabled: true
+
+      otlp/tempo:
+        # RÄTTAD: Servicen heter telemetry-tempo (Helm-releasens namn).
+        endpoint: telemetry-tempo.monitoring.svc.cluster.local:4317
+        tls:
+          insecure: true
+
+      # OBS: den gamla "loki"-exportern är borttagen ur collector-contrib.
+      # Loki 3.x tar emot OTLP direkt på /otlp.
+      otlphttp/loki:
+        endpoint: http://telemetry-loki-gateway.monitoring.svc.cluster.local/otlp
+
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    service:
+      extensions: [health_check]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, k8sattributes, batch]
+          exporters: [otlp/tempo]
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, k8sattributes, batch]
+          exporters: [prometheus]
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, k8sattributes, batch]
+          exporters: [otlphttp/loki]
+      telemetry:
+        logs:
+          level: info
+        # Exponerar collectorns egen telemetri pa 8888. Utan detta block
+        # lyssnar den bara pa localhost i nyare versioner, och scrape
+        # utifran far "connection refused".
+        metrics:
+          readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: 0.0.0.0
+                    port: 8888
+
+---
+# -----------------------------------------------------------------------------
+# Deployment
+# -----------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: monitoring
+  labels:
+    app: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+      annotations:
+        # Tvingar fram omstart när pipeline-konfigurationen ändras.
+        # Uppdatera värdet vid varje ändring av ConfigMap:en.
+        configmap/revision: "2"
+        # Collectorns EGNA metrics (tappade spans, köer) på 8888 - skrapas av
+        # Prometheus jobb "kubernetes-pods".
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8888"
+    spec:
+      serviceAccountName: otel-collector
+      containers:
+        - name: otel-collector
+          # Pinnad version: "latest" kan byta beteende mitt under drift och
+          # göra att konfigurationen slutar validera.
+          image: otel/opentelemetry-collector-contrib:0.160.0
+          imagePullPolicy: IfNotPresent
+          # KRITISKT: utan detta argument läser collectorn sin inbyggda
+          # default-config och ignorerar den monterade filen helt.
+          args:
+            - --config=/etc/otelcol/otel-collector-config.yaml
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              containerPort: 4318
+              protocol: TCP
+            - name: metrics
+              containerPort: 8889
+              protocol: TCP
+            # Collectorns egen telemetri: tappade spans, kobelaggning.
+            # Skilj denna fran 8889, som ar applikationernas metrics.
+            - name: internal
+              containerPort: 8888
+              protocol: TCP
+            - name: health
+              containerPort: 13133
+              protocol: TCP
+          env:
+            # Används av k8sattributes för pod_association via connection.
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          # Utan resurser hamnar podden i QoS-klassen BestEffort och dödas
+          # först vid minnestryck, alltså precis när telemetrin behövs mest.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-config
+            items:
+              - key: otel-collector-config.yaml
+                path: otel-collector-config.yaml
+
+---
+# -----------------------------------------------------------------------------
+# Service
+# -----------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: monitoring
+  labels:
+    app: otel-collector
+  annotations:
+    # Applikationernas metrics (prometheus-exportern på 8889) - skrapas av
+    # Prometheus jobb "kubernetes-service-endpoints".
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8889"
+spec:
+  # Atkomst utifran sker via Ingress pa otel.local (OTLP/HTTP) och
+  # otel-grpc.local (OTLP/gRPC). Se ingress.yaml.
+  type: ClusterIP
+  selector:
+    app: otel-collector
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+      protocol: TCP
+    - name: metrics
+      port: 8889
+      targetPort: metrics
+      protocol: TCP
+    - name: internal
+      port: 8888
+      targetPort: internal
+      protocol: TCP
+
+---
+# -----------------------------------------------------------------------------
+# ServiceMonitor
+#
+# Labeln "release" måste matcha kube-prometheus-stackens serviceMonitorSelector,
+# annars plockas den aldrig upp av Prometheus.
+#
+# OBS: detta objekt kräver att Prometheus-operatorn är installerad. Använder du
+# prometheus-values.yaml (kube-prometheus-stackens community-chart) i stället
+# finns inte CRD:n, och "kubectl apply" felar här. Ta då bort detta block —
+# scrape-konfigurationen i den filen täcker samma två portar.
+# -----------------------------------------------------------------------------
+# apiVersion: monitoring.coreos.com/v1
+# kind: ServiceMonitor
+# metadata:
+#   name: otel-collector-servicemonitor
+#   namespace: monitoring
+#   labels:
+#     app: otel-collector
+#     release: kube-prometheus-stack # VIKTIGT! M ste vara helm-releasen
+# spec:
+#   namespaceSelector:
+#     matchNames:
+#       - monitoring
+#   selector:
+#     matchLabels:
+#       app: otel-collector
+#   endpoints:
+#     - port: metrics
+#       interval: 15s
+#     - port: internal
+#       interval: 15s

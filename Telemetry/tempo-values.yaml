@@ -1,0 +1,34 @@
+tempo:
+  storage:
+    trace:
+      backend: local
+      local:
+        path: /var/tempo/blocks
+      wal:
+        path: /var/tempo/wal
+
+  # TILLAGT: metrics-generatorn räknar fram metrics ur spansen och skickar dem
+  # till Prometheus med remote write. Det är dem Grafanas "Service Graph" och
+  # "tracesToMetrics" i grafana-values.yaml bygger på - utan detta block är
+  # Service Graph-fliken i Tempo tom.
+  metricsGenerator:
+    enabled: true
+    remoteWriteUrl: "http://telemetry-prometheus-server.monitoring.svc.cluster.local:80/api/v1/write"
+    storage:
+      path: /var/tempo/generator
+
+  overrides:
+    defaults:
+      metrics_generator:
+        processors:
+          - service-graphs
+          - span-metrics
+
+  # OTLP-mottagaren (gRPC 4317 / HTTP 4318) är på som standard i charten.
+  # otel-collectorn skickar till telemetry-tempo.monitoring.svc.cluster.local:4317.
+
+persistence:
+  enabled: true
+  # RÄTTAD för k3d-home: local-shared-path -> local-path.
+  storageClassName: "local-path"
+  size: 10Gi

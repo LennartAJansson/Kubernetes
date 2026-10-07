@@ -1,0 +1,8 @@
+node_modules
+dist
+.angular
+.vscode
+.git
+chart
+build.ps1
+*.md

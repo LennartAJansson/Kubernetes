@@ -1,0 +1,27 @@
+server:
+  persistentVolume:
+    # RÄTTAD för k3d-home: "local-shared-path" finns inte i det här klustret
+    # (samma Pending-problem som Infra hade). k3d:s inbyggda local-path +
+    # --default-local-storage-path i k3d-install.yaml lägger datat i
+    # C:\data\shared\k8s.
+    storageClass: "local-path"
+    size: 20Gi
+  # web.enable-lifecycle sätts redan av chartens EGET default-värde för
+  # extraFlags (en lista). Oförändrad mot k3s-mappen - se den filens
+  # kommentar för bakgrund.
+  extraFlags:
+    - web.enable-lifecycle
+  # Tar emot remote write - används av Tempos metrics-generator
+  # (service graph och span metrics, se tempo-values.yaml).
+  extraArgs:
+    web.enable-remote-write-receiver: ""
+
+# Applikationernas metrics hämtas från otel-collectorn (port 8889). Chartens
+# inbyggda jobb "kubernetes-service-endpoints" skrapar alla Services med
+# annotationen prometheus.io/scrape: "true" - den sitter på otel-collector-
+# Servicen i otel-collector.yaml. Ingen egen scrape-konfiguration behövs.
+
+alertmanager:
+  enabled: false
+pushgateway:
+  enabled: false
