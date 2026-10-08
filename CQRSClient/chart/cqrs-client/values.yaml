@@ -26,6 +26,11 @@ api:
   existingSecret: ""
   existingSecretKey: apiKey
 
+# --- Faro (kväll 6) ---------------------------------------------------------------
+# /faro/... skickas av nginx till faro-collectorn (Telemetry\faro-collector.yaml).
+faro:
+  upstream: http://faro-collector.monitoring.svc.cluster.local:8080
+
 service:
   type: ClusterIP
   port: 80

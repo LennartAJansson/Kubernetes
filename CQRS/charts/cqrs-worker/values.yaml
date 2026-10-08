@@ -25,6 +25,15 @@ nats:
   stream: PERSONS        # måste vara samma som i cqrs-api
   consumer: cqrs-worker  # namnet på den varaktiga (durable) konsumenten
 
+# --- OpenTelemetry (kväll 6) -------------------------------------------------------
+# Blir OTEL_*-miljövariabler som OpenTelemetry-SDK:n läser själv.
+telemetry:
+  enabled: true
+  serviceName: cqrs-worker
+  otlpEndpoint: http://otel-collector.monitoring.svc.cluster.local:4317
+  otlpProtocol: grpc
+  metricExportIntervalMs: 10000
+
 extraEnv: {}
 
 resources:

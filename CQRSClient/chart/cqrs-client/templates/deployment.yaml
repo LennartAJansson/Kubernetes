@@ -37,6 +37,8 @@ spec:
                 secretKeyRef:
                   name: {{ include "cqrs-client.secretName" . }}
                   key: {{ .Values.api.existingSecretKey }}
+            - name: FARO_UPSTREAM
+              value: {{ .Values.faro.upstream | quote }}
           readinessProbe:
             httpGet:
               path: {{ .Values.probes.path }}

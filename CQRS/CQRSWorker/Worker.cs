@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using CQRSWorker.Contracts;
 using CQRSWorker.Data;
+using CQRSWorker.Telemetry;
 using Microsoft.EntityFrameworkCore;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
@@ -16,6 +18,7 @@ public class Worker(
     INatsJSContext js,
     IDbContextFactory<PersonsDbContext> dbFactory,
     NatsSettings settings,
+    WorkerTelemetry telemetry,
     ILogger<Worker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -63,9 +66,29 @@ public class Worker(
             // Går inte att tolka - kommer aldrig att lyckas, så sluta leverera det.
             logger.LogWarning("Ogiltigt meddelande på {Subject} - kastas", msg.Subject);
             await msg.AckTerminateAsync(cancellationToken: ct);
+            telemetry.Processed.Add(1,
+                new KeyValuePair<string, object?>("action", "unknown"),
+                new KeyValuePair<string, object?>("outcome", "invalid"));
             return;
         }
 
+        var action = msg.Subject[(msg.Subject.LastIndexOf('.') + 1)..];
+        var actionTag = new KeyValuePair<string, object?>("action", action);
+
+        // Hur länge låg kommandot i kön? IssuedAt sattes av API:t.
+        telemetry.QueueTime.Record(Math.Max(0, (DateTimeOffset.UtcNow - command.IssuedAt).TotalSeconds), actionTag);
+
+        // msg.StartActivity skapar ett span vars förälder är trace-context från
+        // headern traceparent - alltså API:ts span. Därmed blir POST i API:t och
+        // arbetet här i workern EN trace i Tempo, trots kön emellan.
+        // Spannet blir dessutom Activity.Current, så EF Core-spansen hamnar under det.
+        using var activity = msg.StartActivity($"{msg.Subject} process");
+        activity?.SetTag("cqrs.command_id", command.CommandId.ToString());
+        activity?.SetTag("cqrs.person_id", command.PersonId.ToString());
+        activity?.SetTag("cqrs.action", action);
+
+        var start = Stopwatch.GetTimestamp();
+        var outcome = "ok";
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -79,15 +102,24 @@ public class Worker(
             };
 
             await msg.AckAsync(cancellationToken: ct);
+            activity?.SetTag("cqrs.result", result);
             logger.LogInformation("{Subject} person {PersonId}: {Result} (kommando {CommandId})",
                 msg.Subject, command.PersonId, result, command.CommandId);
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
             // T.ex. databasen nere: be JetStream leverera igen om en stund.
+            outcome = "retry";
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.AddException(ex);
             logger.LogError(ex, "Kunde inte utföra {Subject} för {PersonId} - försöker igen om 5 s",
                 msg.Subject, command.PersonId);
             await msg.NakAsync(delay: TimeSpan.FromSeconds(5), cancellationToken: ct);
+        }
+        finally
+        {
+            telemetry.Processed.Add(1, actionTag, new KeyValuePair<string, object?>("outcome", outcome));
+            telemetry.Duration.Record(Stopwatch.GetElapsedTime(start).TotalSeconds, actionTag);
         }
     }
 

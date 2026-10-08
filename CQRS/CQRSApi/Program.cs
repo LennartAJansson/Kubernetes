@@ -1,6 +1,7 @@
 using CQRSApi.Contracts;
 using CQRSApi.Messaging;
 using CQRSApi.Queries;
+using CQRSApi.Telemetry;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Http;
 using NATS.Client.Core;
@@ -20,6 +21,11 @@ using Scalar.AspNetCore;
 // ============================================================================
 
 var builder = WebApplication.CreateBuilder(args);
+
+// --- OpenTelemetry: traces, metrics och loggar till otel-collectorn -----------
+// Se Telemetry/TelemetryExtensions.cs. Inkluderar NATS- och MySQL-spans.
+builder.AddTelemetry();
+builder.Services.AddSingleton<CommandTelemetry>();
 
 builder.Services.AddOpenApi();
 

@@ -4,12 +4,35 @@ persistence:
   storageClassName: "local-path"
   size: 2Gi
 
+# TILLAGT (kväll 6): init-containern init-chown-data byter ägare på datavolymen
+# till Grafanas användare (472). På k3d hamnar volymen i C:\data\shared\k8s
+# (en Windows-mapp via Docker Desktop) där chown nekas ("Permission denied")
+# så fort Grafana har skapat sina undermappar - podden startar då aldrig.
+# Ägarbytet behövs inte här: Grafana kan skriva i mappen ändå.
+initChownData:
+  enabled: false
+
 env:
   GF_SECURITY_ADMIN_USER: "admin"
   GF_SECURITY_ADMIN_PASSWORD: "admin"
   # ÄNDRAD för k3d-home: grafana.ubk3s -> grafana.local.
   GF_SERVER_ROOT_URL: "https://grafana.local"
   GF_FEATURE_TOGGLES_ENABLE: "traceqlEditor"
+
+# TILLAGT (kväll 6): dashboards som kod. En sidecar-container i Grafana-podden
+# letar efter ConfigMaps med labeln grafana_dashboard och läser in JSON:en i
+# dem som dashboards - utan klick. deploy-dashboards.ps1 skapar ConfigMaps
+# från filerna i ./dashboards. Ändrar du en fil: kör skriptet igen.
+sidecar:
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    labelValue: "1"
+    searchNamespace: monitoring
+    folderAnnotation: grafana_folder
+    provider:
+      foldersFromFilesStructure: true
+      allowUiUpdates: true
 
 datasources:
   datasources.yaml:

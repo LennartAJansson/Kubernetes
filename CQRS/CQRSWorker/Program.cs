@@ -1,5 +1,6 @@
 using CQRSWorker;
 using CQRSWorker.Data;
+using CQRSWorker.Telemetry;
 using Microsoft.EntityFrameworkCore;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
@@ -16,6 +17,11 @@ using NATS.Net;
 // ============================================================================
 
 var builder = Host.CreateApplicationBuilder(args);
+
+// --- OpenTelemetry: traces, metrics och loggar till otel-collectorn -----------
+// Se Telemetry/TelemetryExtensions.cs. Plockar upp trace-context från NATS.
+builder.AddTelemetry();
+builder.Services.AddSingleton<WorkerTelemetry>();
 
 var nats = builder.Configuration.GetSection(NatsSettings.SectionName).Get<NatsSettings>() ?? new NatsSettings();
 builder.Services.AddSingleton(nats);

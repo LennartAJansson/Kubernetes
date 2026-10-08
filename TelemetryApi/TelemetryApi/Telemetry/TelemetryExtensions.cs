@@ -51,11 +51,14 @@ public static class TelemetryExtensions
 
             .WithMetrics(metrics => metrics
                 .AddMeter(CustomerTelemetry.Name)
+                // Exemplars: varje histogram-mätning som sker inuti en trace sparar
+                // trace_id. I Grafana blir det prickar i grafen som länkar till Tempo.
+                .SetExemplarFilter(ExemplarFilterType.TraceBased)
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
                 .AddRuntimeInstrumentation()
-                // Exponerar /metrics i Prometheus-format, s\u00E5 man kan skrapa appen
-                // direkt \u00E4ven utan otel-collectorn.
+                // Exponerar /metrics i Prometheus-format, så man kan skrapa appen
+                // direkt även utan otel-collectorn.
                 .AddPrometheusExporter())
 
             .WithLogging(logging => { }, options =>

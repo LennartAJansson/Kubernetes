@@ -59,6 +59,15 @@ cors:
 openApi:
   enabled: true
 
+# --- OpenTelemetry (kväll 6) -------------------------------------------------------
+# Blir OTEL_*-miljövariabler som OpenTelemetry-SDK:n läser själv.
+telemetry:
+  enabled: true
+  serviceName: cqrs-api
+  otlpEndpoint: http://otel-collector.monitoring.svc.cluster.local:4317
+  otlpProtocol: grpc
+  metricExportIntervalMs: 10000
+
 # Extra miljövariabler, t.ex. { Logging__LogLevel__Default: Debug }
 extraEnv: {}
 

@@ -1,4 +1,10 @@
 server:
+  # TILLAGT (kväll 6): chartens standard är att skrapa en gång per MINUT.
+  # Grafana-datakällan räknar med 15 s (timeInterval), så $__rate_interval
+  # blev för kort och rate() gav NoData. 15 s ger också snabbare grafer.
+  global:
+    scrape_interval: 15s
+    evaluation_interval: 15s
   persistentVolume:
     # RÄTTAD för k3d-home: "local-shared-path" finns inte i det här klustret
     # (samma Pending-problem som Infra hade). k3d:s inbyggda local-path +
@@ -11,6 +17,9 @@ server:
   # kommentar för bakgrund.
   extraFlags:
     - web.enable-lifecycle
+    # TILLAGT (kväll 6): sparar exemplars - trace_id kopplat till enskilda
+    # mätpunkter i histogrammen. Grafana visar dem som klickbara prickar.
+    - enable-feature=exemplar-storage
   # Tar emot remote write - används av Tempos metrics-generator
   # (service graph och span metrics, se tempo-values.yaml).
   extraArgs:

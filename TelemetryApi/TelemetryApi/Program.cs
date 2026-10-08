@@ -21,6 +21,8 @@ var builder = WebApplication.CreateBuilder(args);
 // --- Telemetri: en rad här, resten i Telemetry/TelemetryExtensions.cs --------
 builder.AddTelemetry();
 builder.Services.AddSingleton<CustomerTelemetry>();
+// Räknar kunderna i databasen åt gauge-mätaren customers.count.
+builder.Services.AddHostedService<CustomerCountRefresher>();
 
 // --- Databas -----------------------------------------------------------------
 var connectionString = builder.Configuration.GetConnectionString("CustomersDb")
@@ -51,7 +53,7 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("OpenApi
 
 app.MapGet("/healthz", () => TypedResults.Ok("ok")).ExcludeFromDescription();
 
-// Prometheus kan skrapa /metrics direkt p\u00E5 appen (utan collectorn) f\u00F6r att
+// Prometheus kan skrapa /metrics direkt på appen (utan collectorn) för att
 // testa att metrics faktiskt skapas.
 app.MapPrometheusScrapingEndpoint().ExcludeFromDescription();
 

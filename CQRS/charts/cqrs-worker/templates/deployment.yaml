@@ -39,6 +39,27 @@ spec:
               value: {{ .Values.nats.stream | quote }}
             - name: Nats__Consumer
               value: {{ .Values.nats.consumer | quote }}
+            {{- if .Values.telemetry.enabled }}
+            # --- OpenTelemetry (standardvariabler, läses av SDK:n) ---
+            - name: K8S_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: K8S_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: OTEL_SERVICE_NAME
+              value: {{ .Values.telemetry.serviceName | quote }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.telemetry.otlpEndpoint | quote }}
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: {{ .Values.telemetry.otlpProtocol | quote }}
+            - name: OTEL_METRIC_EXPORT_INTERVAL
+              value: {{ .Values.telemetry.metricExportIntervalMs | quote }}
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.instance.id=$(K8S_POD_NAME),k8s.pod.name=$(K8S_POD_NAME),k8s.namespace.name=$(K8S_NAMESPACE)"
+            {{- end }}
             {{- range $name, $value := .Values.extraEnv }}
             - name: {{ $name }}
               value: {{ $value | quote }}

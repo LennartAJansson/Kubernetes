@@ -6,7 +6,7 @@ import { PersonsService, type CommandAccepted, type PersonRequest } from './pers
 describe('PersonsService', () => {
   let service: PersonsService;
   let http: HttpTestingController;
-  const url = 'http://cqrsapi.local/persons';
+  const url = '/api/persons';
   const person: PersonRequest = { firstName: 'Ada', lastName: 'Lovelace', email: null };
   const accepted: CommandAccepted = {
     personId: 'person-id', commandId: 'command-id', action: 'Created', status: 'Accepted'
@@ -57,4 +57,4 @@ describe('PersonsService', () => {
     remove.flush(accepted, { status: 202, statusText: 'Accepted' });
     expect(receipts).toEqual([accepted, accepted, accepted]);
   });
-});
+});

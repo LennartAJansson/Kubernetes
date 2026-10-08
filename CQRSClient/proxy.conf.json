@@ -3,7 +3,19 @@
     "target": "http://cqrsapi.local",
     "secure": false,
     "changeOrigin": true,
-    "pathRewrite": { "^/api": "" },
-    "headers": { "X-API-KEY": "cqrs_reader" }
+    "pathRewrite": {
+      "^/api": ""
+    },
+    "headers": {
+      "X-API-KEY": "cqrs_reader"
+    }
+  },
+  "/faro": {
+    "target": "https://faro.local",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": {
+      "^/faro": ""
+    }
   }
 }

@@ -144,6 +144,9 @@ data:
       prometheus:
         endpoint: 0.0.0.0:8889
         namespace: otel
+        # TILLAGT (kväll 6): OpenMetrics-formatet kan bära exemplars (trace_id
+        # på enskilda histogram-mätningar). Prometheus ber om det formatet själv.
+        enable_open_metrics: true
         # Utan denna blir inte service.namespace och deployment.environment
         # till labels, och då går det inte att gruppera per miljö i Grafana
         # eller larma per miljö i Alertmanager.
@@ -222,7 +225,7 @@ spec:
       annotations:
         # Tvingar fram omstart när pipeline-konfigurationen ändras.
         # Uppdatera värdet vid varje ändring av ConfigMap:en.
-        configmap/revision: "2"
+        configmap/revision: "3"
         # Collectorns EGNA metrics (tappade spans, köer) på 8888 - skrapas av
         # Prometheus jobb "kubernetes-pods".
         prometheus.io/scrape: "true"

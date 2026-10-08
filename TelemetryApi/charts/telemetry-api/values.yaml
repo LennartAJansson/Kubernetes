@@ -43,6 +43,9 @@ telemetry:
   otlpEndpoint: http://otel-collector.monitoring.svc.cluster.local:4317
   # grpc (port 4317) eller http/protobuf (port 4318)
   otlpProtocol: grpc
+  # Hur ofta metrics skickas till collectorn (standard 60000 ms). 10 s gör att
+  # graferna i Grafana reagerar snabbt när man klickar i appen.
+  metricExportIntervalMs: 10000
 
 # Visa OpenAPI-dokumentet och Scalar-UI:t (/scalar) även utanför Development.
 openApi:

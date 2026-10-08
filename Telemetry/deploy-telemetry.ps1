@@ -100,6 +100,10 @@ try {
     kubectl apply -f faro-collector.yaml
     kubectl apply -f ingress.yaml
 
+    # Dashboards som kod (kväll 6) - se deploy-dashboards.ps1.
+    Write-Host "--- Läser in dashboards ---" -ForegroundColor Cyan
+    & (Join-Path $PSScriptRoot "deploy-dashboards.ps1") -KubeContext $KubeContext -Namespace $Namespace
+
     # ==========================================================================
     # STEG 5: VERIFIERA
     # ==========================================================================
@@ -114,6 +118,7 @@ try {
     Write-Host "`nKlart! Lägg till i hosts-filen (som administratör):" -ForegroundColor Green
     Write-Host "  127.0.0.1 grafana.local prometheus.local loki.local tempo.local otel.local otel-grpc.local faro.local"
     Write-Host "Grafana: https://grafana.local  (admin / admin)"
+    Write-Host "Översikt: https://grafana.local/d/telemetri-oversikt"
 }
 finally {
     Pop-Location

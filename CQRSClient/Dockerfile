@@ -34,6 +34,7 @@ COPY --from=build /app/dist/CQRSClient/browser /usr/share/nginx/html
 
 # Standardvärden om containern körs utan Helm (t.ex. docker run lokalt).
 ENV API_UPSTREAM=http://cqrsapi.local \
-    API_KEY=
+    API_KEY= \
+    FARO_UPSTREAM=http://faro.local
 
 EXPOSE 80

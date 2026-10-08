@@ -25,8 +25,9 @@ public static class CustomerEndpoints
         return app;
     }
 
-    private static async Task<Ok<List<CustomerDto>>> GetAll(string? search, CustomersDbContext db, CancellationToken ct)
+    private static async Task<Ok<List<CustomerDto>>> GetAll(string? search, CustomersDbContext db, CustomerTelemetry telemetry, CancellationToken ct)
     {
+        using var op = telemetry.Measure(string.IsNullOrWhiteSpace(search) ? "list" : "search");
         var query = db.Customers.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -36,33 +37,48 @@ public static class CustomerEndpoints
 
         var result = await query.OrderBy(c => c.Name).Select(c => CustomerDto.From(c)).ToListAsync(ct);
 
+        telemetry.ResultCount.Record(result.Count, new KeyValuePair<string, object?>("operation", string.IsNullOrWhiteSpace(search) ? "list" : "search"));
+
         // Taggar på det span ASP.NET Core redan har startat för anropet.
         Activity.Current?.SetTag("customers.search", search ?? "");
         Activity.Current?.SetTag("customers.count", result.Count);
         return TypedResults.Ok(result);
     }
 
-    private static async Task<Results<Ok<CustomerDto>, NotFound>> GetById(Guid id, CustomersDbContext db, CancellationToken ct)
+    private static async Task<Results<Ok<CustomerDto>, NotFound>> GetById(Guid id, CustomersDbContext db, CustomerTelemetry telemetry, CancellationToken ct)
     {
+        using var op = telemetry.Measure("get");
         Activity.Current?.SetTag("customer.id", id.ToString());
         var customer = await db.Customers.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, ct);
-        return customer is null ? TypedResults.NotFound() : TypedResults.Ok(CustomerDto.From(customer));
+        if (customer is null)
+        {
+            op.Outcome = "not_found";
+            return TypedResults.NotFound();
+        }
+        return TypedResults.Ok(CustomerDto.From(customer));
     }
 
     private static async Task<Results<Created<CustomerDto>, ValidationProblem>> Create(
         CustomerRequest request, CustomersDbContext db, CustomerTelemetry telemetry, ILoggerFactory loggerFactory, CancellationToken ct)
     {
         var logger = loggerFactory.CreateLogger("TelemetryApi.Customers");
+        using var op = telemetry.Measure("create");
 
         if (Validate(request, telemetry, logger) is { } errors)
+        {
+            op.Outcome = "invalid";
             return TypedResults.ValidationProblem(errors);
+        }
 
         var customer = new Customer { Id = Guid.NewGuid(), CreatedAt = DateTime.UtcNow };
         request.ApplyTo(customer);
         db.Customers.Add(customer);
         await db.SaveChangesAsync(ct);
 
-        telemetry.Created.Add(1);
+        // Taggen city gör att räknaren kan delas upp per stad i Grafana.
+        // OBS: taggar med många olika värden (t.ex. id) ger en ny tidsserie per
+        // värde i Prometheus - håll dem få ("låg kardinalitet").
+        telemetry.Created.Add(1, new KeyValuePair<string, object?>("city", customer.City ?? "okänd"));
         Activity.Current?.SetTag("customer.id", customer.Id.ToString());
         // Strukturerad loggning: {CustomerId} blir ett eget fält i Loki, inte bara text.
         logger.LogInformation("Kund {CustomerId} skapad: {CustomerName} ({City})", customer.Id, customer.Name, customer.City);
@@ -74,14 +90,19 @@ public static class CustomerEndpoints
         Guid id, CustomerRequest request, CustomersDbContext db, CustomerTelemetry telemetry, ILoggerFactory loggerFactory, CancellationToken ct)
     {
         var logger = loggerFactory.CreateLogger("TelemetryApi.Customers");
+        using var op = telemetry.Measure("update");
         Activity.Current?.SetTag("customer.id", id.ToString());
 
         if (Validate(request, telemetry, logger) is { } errors)
+        {
+            op.Outcome = "invalid";
             return TypedResults.ValidationProblem(errors);
+        }
 
         var customer = await db.Customers.FirstOrDefaultAsync(c => c.Id == id, ct);
         if (customer is null)
         {
+            op.Outcome = "not_found";
             logger.LogWarning("Kund {CustomerId} finns inte - kan inte uppdatera", id);
             return TypedResults.NotFound();
         }
@@ -99,11 +120,13 @@ public static class CustomerEndpoints
         Guid id, CustomersDbContext db, CustomerTelemetry telemetry, ILoggerFactory loggerFactory, CancellationToken ct)
     {
         var logger = loggerFactory.CreateLogger("TelemetryApi.Customers");
+        using var op = telemetry.Measure("delete");
         Activity.Current?.SetTag("customer.id", id.ToString());
 
         var deleted = await db.Customers.Where(c => c.Id == id).ExecuteDeleteAsync(ct);
         if (deleted == 0)
         {
+            op.Outcome = "not_found";
             logger.LogWarning("Kund {CustomerId} finns inte - kan inte radera", id);
             return TypedResults.NotFound();
         }

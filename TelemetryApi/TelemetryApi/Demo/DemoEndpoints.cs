@@ -14,10 +14,12 @@ public static class DemoEndpoints
     {
         var demo = app.MapGroup("/demo").WithTags("Demo");
 
-        demo.MapGet("/slow", async (int? ms, ILoggerFactory loggerFactory, CancellationToken ct, CustomerTelemetry telemetry) =>
+        demo.MapGet("/slow", async (int? ms, ILoggerFactory loggerFactory, CustomerTelemetry telemetry, CancellationToken ct) =>
         {
-          Stopwatch stopwatch = Stopwatch.StartNew();
-          var delay = Math.Clamp(ms ?? 1500, 0, 10_000);
+            // Mäts i histogrammet customers.requestduration med operation=demo.slow
+            // - syns direkt som en topp i p95-grafen på dashboarden.
+            using var op = telemetry.Measure("demo.slow");
+            var delay = Math.Clamp(ms ?? 1500, 0, 10_000);
             var logger = loggerFactory.CreateLogger("TelemetryApi.Demo");
 
             using (var activity = CustomerTelemetry.ActivitySource.StartActivity("demo.slow-work"))
@@ -26,14 +28,14 @@ public static class DemoEndpoints
                 logger.LogInformation("Simulerar långsamt arbete i {Delay} ms", delay);
                 await Task.Delay(delay, ct);
             }
-            
-            telemetry.RequestDuration.Record(stopwatch.ElapsedMilliseconds);
 
             return TypedResults.Ok(new { delayMs = delay });
         });
 
-        demo.MapGet("/error", (ILoggerFactory loggerFactory) =>
+        demo.MapGet("/error", (ILoggerFactory loggerFactory, CustomerTelemetry telemetry) =>
         {
+            using var op = telemetry.Measure("demo.error");
+            op.Outcome = "error";
             var logger = loggerFactory.CreateLogger("TelemetryApi.Demo");
             logger.LogWarning("Strax kastas ett undantag - titta efter det röda spannet i Tempo (trace {TraceId})",
                 Activity.Current?.TraceId.ToString());

@@ -51,6 +51,8 @@ spec:
               value: {{ .Values.telemetry.otlpEndpoint | quote }}
             - name: OTEL_EXPORTER_OTLP_PROTOCOL
               value: {{ .Values.telemetry.otlpProtocol | quote }}
+            - name: OTEL_METRIC_EXPORT_INTERVAL
+              value: {{ .Values.telemetry.metricExportIntervalMs | quote }}
             # $(VAR) fylls i av Kubernetes från variablerna ovan - varje podd
             # blir en egen instans i Grafana.
             - name: OTEL_RESOURCE_ATTRIBUTES
