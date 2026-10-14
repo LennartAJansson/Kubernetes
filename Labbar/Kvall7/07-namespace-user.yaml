@@ -1,0 +1,61 @@
+# =============================================================================
+# Labb 7 - en användare med eget klientcertifikat, låst till namespacet "lab"
+#
+# Kubernetes har inga användarkonton. En "användare" är bara namnet i ett
+# klientcertifikat som klustrets CA har signerat:
+#   CN (Common Name)  = användarnamnet  -> lab-user
+#   O  (Organization) = grupp(er)        -> lab-team
+#
+# Certifikatet skapas med 07-create-user.ps1 (eller stegvis enligt
+# presentationen). Den här filen ger användaren rättigheter - utan den får
+# lab-user logga in men inte göra någonting.
+#
+# Ett context med --namespace=lab väljer bara STANDARD-namespace - det
+# hindrar ingenting (-n kube-system fungerar fortfarande). Det som faktiskt
+# låser är RBAC: användaren har bara en Role i namespacet lab.
+#
+#   kubectl apply -f 07-namespace-user.yaml
+#   kubectl auth can-i list pods -n lab --as=lab-user      # yes
+#   kubectl auth can-i list pods -n mysql --as=lab-user    # no
+#   kubectl auth can-i get secrets -n lab --as=lab-user    # no
+# =============================================================================
+# Role = rättigheter INOM ett namespace (ClusterRole gäller hela klustret).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: lab-developer
+  namespace: lab
+rules:
+  # Vanligt utvecklararbete: poddar, loggar, exec, tjänster, ConfigMaps.
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "pods/exec", "services", "configmaps", "events"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # SealedSecrets får skapas - men Secrets får INTE läsas (ingen regel för
+  # "secrets"). Utvecklaren kan alltså leverera en hemlighet utan att kunna
+  # läsa den i klartext.
+  - apiGroups: ["bitnami.com"]
+    resources: ["sealedsecrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+# RoleBinding = koppla Role:n till en identitet, i namespacet lab.
+# kind: User matchar CN i certifikatet. Med kind: Group och name: lab-team
+# hade alla med O=lab-team i sitt certifikat fått samma rättigheter.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: lab-user-is-developer
+  namespace: lab
+subjects:
+  - kind: User
+    name: lab-user
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: lab-developer

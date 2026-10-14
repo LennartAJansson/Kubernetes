@@ -1,0 +1,80 @@
+# =============================================================================
+# Labb 1 - ConfigMap som miljövariabler OCH som fil
+#
+#   kubectl apply -f 01-configmap-demo.yaml
+#   kubectl logs -f deploy/config-demo -n lab
+#
+# Ändra sedan ConfigMap:en (kubectl edit configmap app-config -n lab) och se
+# att FILEN uppdateras av sig själv efter en stund - men inte miljövariablerna.
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lab
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: lab
+data:
+  # Enkla nyckel/värde-par - blir miljövariabler nedan.
+  GREETING: "Hej från en ConfigMap"
+  LOG_LEVEL: "Information"
+  # En hel fil - monteras som /config/appsettings.json nedan.
+  appsettings.json: |
+    {
+      "Feature": { "NewUi": false },
+      "MaxItems": 25
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: config-demo
+  namespace: lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: config-demo
+  template:
+    metadata:
+      labels:
+        app: config-demo
+    spec:
+      containers:
+        - name: demo
+          image: busybox:1.36
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              while true; do
+                echo "$(date +%T)  GREETING=$GREETING  LOG_LEVEL=$LOG_LEVEL"
+                echo "          fil: $(tr -d '\n ' < /config/appsettings.json)"
+                sleep 5
+              done
+          env:
+            # Sätt 1: en nyckel i taget
+            - name: GREETING
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: GREETING
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: LOG_LEVEL
+          volumeMounts:
+            # Sätt 2: som fil i en katalog
+            - name: config
+              mountPath: /config
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: app-config
+            items:
+              - key: appsettings.json
+                path: appsettings.json
