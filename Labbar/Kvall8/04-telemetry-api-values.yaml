@@ -1,0 +1,17 @@
+# =============================================================================
+# Labb 4c - som 03-filen, plus ett eget TLS-certifikat för telemetryapi.local
+# (SealedSecret:en telemetry-api-tls i telemetry-api-tls-sealed.yaml).
+#
+#   ..\..\TelemetryApi\build.ps1 -SkipBuild -Values 04-telemetry-api-values.yaml
+#
+# build.ps1 tar bara EN values-fil, därför står existingSecret med även här.
+# =============================================================================
+database:
+  existingSecret: customers-db
+  existingSecretKey: connectionString
+
+ingress:
+  tls:
+    - secretName: telemetry-api-tls
+      hosts:
+        - telemetryapi.local

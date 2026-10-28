@@ -1,0 +1,12 @@
+# =============================================================================
+# Labb 3c - TelemetryApi läser sin connection string från SealedSecret:en
+# customers-db (customers-db-sealed.yaml) istället för från values.yaml.
+#
+#   ..\..\TelemetryApi\build.ps1 -SkipBuild -Values 03-telemetry-api-values.yaml
+#
+# Filen måste med vid VARJE build.ps1 - annars skapar charten sin egen Secret
+# med det gamla lösenordet igen.
+# =============================================================================
+database:
+  existingSecret: customers-db
+  existingSecretKey: connectionString
